@@ -7,6 +7,9 @@
 #include <fstream>
 #include <sstream>
 #include <iostream>
+#include<glm/glm.hpp>
+#include <glm/gtc/type_ptr.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 
 class Shader {
 public:
@@ -18,8 +21,8 @@ public:
 		std::ifstream vertexFile;
 		std::ifstream fragmentFile;
 
-		vertexFile.exceptions(std::ifstream::failbit || std::ifstream::badbit);
-		fragmentFile.exceptions(std::ifstream::failbit || std::ifstream::badbit);
+		vertexFile.exceptions(std::ifstream::failbit | std::ifstream::badbit);
+		fragmentFile.exceptions(std::ifstream::failbit | std::ifstream::badbit);
 
 		try {
 			vertexFile.open(vertexPath);
@@ -41,6 +44,8 @@ public:
 		}
 		const char* vShadercode = vertexCode.c_str();
 		const char* fShadercode = fragmentCode.c_str();
+
+		std::cout << "OKUNAN VERTEX KODU:\n" << vShadercode << std::endl;
 
 
 		unsigned int vertex, fragment;
@@ -70,6 +75,12 @@ public:
 		glAttachShader(ID, fragment);
 		glLinkProgram(ID);
 
+		glGetProgramiv(ID, GL_LINK_STATUS, &success);
+		if (!success) {
+			glGetProgramInfoLog(ID, 512, NULL, infolog);
+			std::cout << "ERROR::SHADER::PROGRAM::LINKING_FAILED\n" << infolog << std::endl;
+		}
+
 		glDeleteShader(vertex);
 		glDeleteShader(fragment);
 	}
@@ -88,6 +99,9 @@ public:
 	void setFloat(const std::string& name, float value) const {
 		glUniform1f(glGetUniformLocation(ID, name.c_str()), value);
 	}
-};
+	void setMat4(const std::string& name, glm::mat4& value) const {
+		glUniformMatrix4fv(glGetUniformLocation(ID, name.c_str()), 1, GL_FALSE, glm::value_ptr(value));
 
+	}
+};
 #endif
