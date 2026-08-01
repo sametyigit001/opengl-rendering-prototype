@@ -6,6 +6,7 @@
 #include "glad/glad.h"
 #include "GLFW/glfw3.h"
 #include "Window.h"
+#include "Shader.h"
 
 enum class projectionType {
 	perspective,
@@ -33,15 +34,20 @@ private:
 	glm::vec3 cameraFront = glm::vec3(0.0f, 0.0f, -1.0f);
 	glm::vec3 cameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
 	float m_camSpeed;
-	
+
+
 public:
-	float lastX = 400, lastY = 300;
+	double lastX = 400, lastY = 300;
 	float yaw = -89.0f;
 	float pitch = 0.0f;
 	bool firstMouse = true;
+	float ambient = 0.5f;
 
+	const glm::vec3& pos;
+	const glm::vec3& front;
+	const glm::vec3& up;
 
-	explicit Camera(const cameraConfig& config) {
+	explicit Camera(const cameraConfig& config) : pos(cameraPos), front(cameraFront), up(cameraUp) {
 		m_Type = config.type;
 		m_Width = config.windowWidth;
 		m_Height = config.windowHeight;
@@ -50,7 +56,7 @@ public:
 		m_Near = config.nearPlane;
 		m_camSpeed = config.cameraSpeed;
 
-	
+
 	};
 	glm::mat4 getProjectionMatrix() {
 		switch (m_Type) {
@@ -69,24 +75,41 @@ public:
 		return glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
 	}
 
+	void setSpeed(int val) {
+		m_camSpeed = val;
+	}
 
-	void processInput(Window* window, float deltatime) {
-		GLFWwindow* win = window->getWindow();
-		const float speedMultiplier = m_camSpeed;
-		const float speed = deltatime * speedMultiplier;
-		if (glfwGetKey(win, GLFW_KEY_W) == GLFW_PRESS)
-			cameraPos += speed * cameraFront;
-		if (glfwGetKey(win, GLFW_KEY_S) == GLFW_PRESS)
-			cameraPos -= speed * cameraFront;
-		if (glfwGetKey(win, GLFW_KEY_A) == GLFW_PRESS)
-			cameraPos -= glm::normalize(glm::cross(cameraFront, cameraUp)) * speed;
-		if (glfwGetKey(win, GLFW_KEY_D) == GLFW_PRESS)
-			cameraPos += glm::normalize(glm::cross(cameraFront, cameraUp)) * speed;
-		if (glfwGetKey(win, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
-			glfwSetWindowShouldClose(win, GLFW_TRUE);
+		void processInput(Window* window, float deltatime) {
+			GLFWwindow* win = window->getWindow();
+			const float speedMultiplier = m_camSpeed;
+			const float speed = deltatime * speedMultiplier;
+			if (glfwGetKey(win, GLFW_KEY_W) == GLFW_PRESS)
+				cameraPos += speed * cameraFront;
+			if (glfwGetKey(win, GLFW_KEY_S) == GLFW_PRESS)
+				cameraPos -= speed * cameraFront;
+			if (glfwGetKey(win, GLFW_KEY_A) == GLFW_PRESS)
+				cameraPos -= glm::normalize(glm::cross(cameraFront, cameraUp)) * speed;
+			if (glfwGetKey(win, GLFW_KEY_D) == GLFW_PRESS)
+				cameraPos += glm::normalize(glm::cross(cameraFront, cameraUp)) * speed;
+			if (glfwGetKey(win, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS)
+				cameraPos += cameraUp * speed;
+			if (glfwGetKey(win, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS)
+				cameraPos -= cameraUp * speed;
+			if (glfwGetKey(win, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
+				glfwSetWindowShouldClose(win, GLFW_TRUE);
+			}
+			if (glfwGetKey(win, GLFW_KEY_UP) == GLFW_PRESS)
+			{
+				ambient += 0.1f * deltatime;
+			}
+			if (glfwGetKey(win, GLFW_KEY_DOWN) == GLFW_PRESS)
+			{
+				ambient -= 0.1f * deltatime;
+			}
 		}
-	};
 	
+
+		 glm::vec3 GetPosition() const { return cameraPos; }
 
 	void mouse_callback(GLFWwindow* window,double xpos,double ypos){
 		
@@ -98,8 +121,8 @@ public:
 			firstMouse = false;
 		}
 
-		float xoffset = xpos - lastX;
-		float yoffset = lastY - ypos;
+		double xoffset = xpos - lastX;
+		double yoffset = lastY - ypos;
 		lastX = xpos;
 		lastY = ypos;
 

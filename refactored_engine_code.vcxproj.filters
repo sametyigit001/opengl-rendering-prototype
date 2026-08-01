@@ -82,5 +82,11 @@
     <None Include="..\..\..\Documents\shaders\shader.vert">
       <Filter>shaders</Filter>
     </None>
+    <None Include="..\..\..\Documents\shaders\light.vert">
+      <Filter>shaders</Filter>
+    </None>
+    <None Include="..\..\..\Documents\shaders\light.frag">
+      <Filter>shaders</Filter>
+    </None>
   </ItemGroup>
 </Project>

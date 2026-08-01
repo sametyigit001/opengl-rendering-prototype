@@ -88,8 +88,18 @@ void Shader::setUniformProjection(const glm::mat4& data) const{
 	glUniformMatrix4fv(location, 1, GL_FALSE, glm::value_ptr(data));
 }
 
-void Shader::setInt(const char* name, int slot) {
+void Shader::setInt(const char* name, int data) {
 	unsigned int location = glGetUniformLocation(m_ProgramID, name);
 
-	glUniform1i(location, slot);
+	glUniform1i(location, data);
+}
+void Shader::setFloat(const char* name, float data) {
+	unsigned int location = glGetUniformLocation(m_ProgramID, name);
+
+	glUniform1f(location, data);
+}
+void Shader::setVec3(const char* name, const glm::vec3& data)const {
+	unsigned int location = glGetUniformLocation(m_ProgramID, name);
+
+	glUniform3fv(location,1, glm::value_ptr(data));
 }

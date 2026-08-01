@@ -40,6 +40,8 @@
     <ClInclude Include="src\Window.h" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="..\..\..\Documents\shaders\light.frag" />
+    <None Include="..\..\..\Documents\shaders\light.vert" />
     <None Include="..\..\..\Documents\shaders\shader.frag" />
     <None Include="..\..\..\Documents\shaders\shader.vert" />
   </ItemGroup>

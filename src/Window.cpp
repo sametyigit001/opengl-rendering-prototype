@@ -16,6 +16,7 @@
 		glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
 		glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
 		glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+		glfwWindowHint(GLFW_SAMPLES, 4); // 4x MSAA
 	
 			m_window = glfwCreateWindow(m_width, m_height, m_title.c_str(), NULL, NULL);
 			if (m_window == NULL) {
