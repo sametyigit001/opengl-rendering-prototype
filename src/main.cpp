@@ -74,8 +74,8 @@ int main()
         1, 2, 3
     };
 
-    Shader shaders("C:/Users/Samet/Documents/shaders/shader.vert", "C:/Users/Samet/Documents/shaders/shader.frag");
-    Shader lightShders("C:/Users/Samet/Documents/shaders/light.vert", "C:/Users/Samet/Documents/shaders/light.frag");
+    Shader shaders("src/shaders/shader.vert", "src/shaders/shader.frag");
+    Shader lightShders("src/shaders/light.vert", "src/shaders/light.frag");
 
     cameraConfig config;
     config.type = projectionType::perspective;
