@@ -19,7 +19,7 @@ struct cameraConfig {
 	float windowWidth = 800.0f;
 	float windowHeight = 600.0f;
 	float FOV = 45.0f;
-	float nearPlane = -1000.0f;
+	float nearPlane = 0.1f;
 	float farPlane = 1000.0f;
 	float cameraSpeed = 3.0f;
 };
@@ -43,11 +43,11 @@ public:
 	bool firstMouse = true;
 	float ambient = 0.5f;
 
-	const glm::vec3& pos;
-	const glm::vec3& front;
-	const glm::vec3& up;
+	const glm::vec3 getPos()const { return cameraPos; };
+	const glm::vec3& getFront()const { return cameraFront; };
+	const glm::vec3& getUp()const { return cameraUp; };
 
-	explicit Camera(const cameraConfig& config) : pos(cameraPos), front(cameraFront), up(cameraUp) {
+	explicit Camera(const cameraConfig& config) {
 		m_Type = config.type;
 		m_Width = config.windowWidth;
 		m_Height = config.windowHeight;
@@ -109,7 +109,7 @@ public:
 		}
 	
 
-		 glm::vec3 GetPosition() const { return cameraPos; }
+	const glm::vec3& GetPosition() const { return cameraPos; }
 
 	void mouse_callback(GLFWwindow* window,double xpos,double ypos){
 		
