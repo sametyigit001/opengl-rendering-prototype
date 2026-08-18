@@ -48,6 +48,15 @@
     <ClCompile Include="src\Texture.cpp">
       <Filter>Classes</Filter>
     </ClCompile>
+    <ClCompile Include="src\Lights.cpp">
+      <Filter>Classes</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Material.cpp">
+      <Filter>Classes</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Model.cpp">
+      <Filter>Classes</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\Window.h">
@@ -74,18 +83,27 @@
     <ClInclude Include="src\Texture.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="src\Lights.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Material.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Model.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <None Include="..\..\..\Documents\shaders\shader.frag">
+    <None Include="src\shaders\light.frag">
       <Filter>shaders</Filter>
     </None>
-    <None Include="..\..\..\Documents\shaders\shader.vert">
+    <None Include="src\shaders\light.vert">
       <Filter>shaders</Filter>
     </None>
-    <None Include="..\..\..\Documents\shaders\light.vert">
+    <None Include="src\shaders\shader.frag">
       <Filter>shaders</Filter>
     </None>
-    <None Include="..\..\..\Documents\shaders\light.frag">
+    <None Include="src\shaders\shader.vert">
       <Filter>shaders</Filter>
     </None>
   </ItemGroup>
