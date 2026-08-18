@@ -58,6 +58,20 @@ Shader::Shader(const char* vertexPath, const char* fragmentPath) {
 		glDeleteShader(vertex);
 		glDeleteShader(fragment);
 }
+
+int Shader::getUniformLocation(const std::string& name)const {
+	auto it = m_uniformCache.find(name);
+	if (it != m_uniformCache.end()) {
+		return it->second;
+	}
+	int location = glGetUniformLocation(m_ProgramID, name.c_str());
+	if (location == -1) {
+		m_uniformCache[name] = location;
+	}
+	m_uniformCache[name] = location;
+	return location;
+}
+
 Shader::~Shader() {
 	if (m_ProgramID != 0) {
 		glDeleteProgram(m_ProgramID);
@@ -69,37 +83,48 @@ void Shader::use() {
 
 void Shader::setUniformModel(const glm::mat4& data) const{
 
-	unsigned int location = glGetUniformLocation(m_ProgramID, "uModel");
 
-	glUniformMatrix4fv(location, 1, GL_FALSE, glm::value_ptr(data));
+	glUniformMatrix4fv(getUniformLocation("uModel"), 1, GL_FALSE, glm::value_ptr(data));
 }
 
 void Shader::setUniformView(const glm::mat4& data) const{
 
-	unsigned int location = glGetUniformLocation(m_ProgramID, "uView");
 
-	glUniformMatrix4fv(location, 1, GL_FALSE, glm::value_ptr(data));
+	glUniformMatrix4fv(getUniformLocation("uView"), 1, GL_FALSE, glm::value_ptr(data));
 }
 
 void Shader::setUniformProjection(const glm::mat4& data) const{
 
-	unsigned int location = glGetUniformLocation(m_ProgramID, "uProjection");
-
-	glUniformMatrix4fv(location, 1, GL_FALSE, glm::value_ptr(data));
+	glUniformMatrix4fv(getUniformLocation("uProjection"), 1, GL_FALSE, glm::value_ptr(data));
 }
 
-void Shader::setInt(const char* name, int data) {
-	unsigned int location = glGetUniformLocation(m_ProgramID, name);
-
-	glUniform1i(location, data);
+void Shader::setInt(const char* name, int data)const {
+	glUniform1i(getUniformLocation(name), data);
 }
-void Shader::setFloat(const char* name, float data) {
-	unsigned int location = glGetUniformLocation(m_ProgramID, name);
-
-	glUniform1f(location, data);
+void Shader::setFloat(const char* name, float data)const {
+	glUniform1f(getUniformLocation(name), data);
 }
 void Shader::setVec3(const char* name, const glm::vec3& data)const {
-	unsigned int location = glGetUniformLocation(m_ProgramID, name);
+	glUniform3fv(getUniformLocation(name),1, glm::value_ptr(data));
+}
 
-	glUniform3fv(location,1, glm::value_ptr(data));
+
+void Shader::setLight( const lightConfig& lightData,int index)const {
+
+	std::string prefix = "light[" + std::to_string(index) + "].";
+
+	setInt((prefix + "type").c_str(), static_cast<int>(lightData.type));
+
+	setVec3((prefix + "direction").c_str(), lightData.direction);
+	setVec3((prefix + "position").c_str(), lightData.position);
+	setVec3((prefix + "ambient").c_str(), lightData.ambient);
+	setVec3((prefix + "diffuse").c_str(), lightData.diffuse);
+	setVec3((prefix + "specular").c_str(), lightData.specular);
+
+	setFloat((prefix + "constant").c_str(),lightData.constant);
+	setFloat((prefix + "linear").c_str(),lightData.linear);
+	setFloat((prefix + "quadratic").c_str(),lightData.quadratic);
+	setFloat((prefix + "cutOff").c_str(),lightData.cutOff);
+	setFloat((prefix + "outerCutOff").c_str(),lightData.outerCutOff);
+
 }
