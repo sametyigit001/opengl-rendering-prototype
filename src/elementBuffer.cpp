@@ -1,8 +1,11 @@
 #include "elementBuffer.h"
 
-EBO::EBO(unsigned int size, const unsigned int* data) {
+EBO::EBO() {
 	glGenBuffers(1, &m_eboID);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_eboID);
+}
+
+void EBO::bufferData(unsigned int size, const void* data) {
+	this->bind();
 	glBufferData(GL_ELEMENT_ARRAY_BUFFER, size, data, GL_STATIC_DRAW);
 }
 EBO::~EBO() {

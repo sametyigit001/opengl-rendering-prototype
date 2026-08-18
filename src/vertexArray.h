@@ -15,6 +15,22 @@ private:
 public:
 	VAO();
 	~VAO();
+	VAO(const VAO&) = delete;
+
+	VAO& operator=(const VAO&) = delete;
+
+	VAO(VAO&& other) noexcept { this->m_vaoID = other.m_vaoID; other.m_vaoID = 0; };
+
+	VAO& operator=(VAO&& other) noexcept {
+		if (this != &other) {
+			if (m_vaoID) glDeleteVertexArrays(1, &m_vaoID);
+			this->m_vaoID = other.m_vaoID;
+			other.m_vaoID = 0;
+		}
+		return *this;
+	};
+
+
 	void bind();
 	void unbind();
 	void build(VBO& vbo, EBO& ebo, const std::vector<unsigned int>& attributes);

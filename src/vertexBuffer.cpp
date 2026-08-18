@@ -1,8 +1,11 @@
 #include "vertexBuffer.h"
 
-VBO::VBO(unsigned int size, const void* data) {
+VBO::VBO() {
 	glGenBuffers(1, &m_vboID);
-	glBindBuffer(GL_ARRAY_BUFFER, m_vboID);
+}
+
+void VBO::bufferData(unsigned int size, const void* data) {
+	this->bind();
 	glBufferData(GL_ARRAY_BUFFER, size, data, GL_STATIC_DRAW);
 }
 
