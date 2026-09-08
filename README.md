@@ -8,7 +8,7 @@ This project is a compact, hands-on exploration of real-time rendering fundament
 
 ### Engine Demo
 
-![Interactive engine demo]([media/demo.gif](https://github.com/user-attachments/assets/aa757f01-4685-4ac0-8e53-23e912bc458a
+![Interactive engine demo](https://github.com/user-attachments/assets/aa757f01-4685-4ac0-8e53-23e912bc458a
 ))
 
 
