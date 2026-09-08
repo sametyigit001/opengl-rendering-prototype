@@ -8,15 +8,7 @@ This project is a compact, hands-on exploration of real-time rendering fundament
 
 ### Engine Demo
 
-### Engine Demo
-
 <video src="https://github.com/user-attachments/assets/ed77f1f3-cf55-49e2-ad0d-d6b9f093bba1" controls autoplay loop muted width="100%"></video>
-
-*Real-time Stanford Lucy rendering with free-look camera movement and the live FPS counter.*
-
-
-
-
 
 *Real-time Stanford Lucy rendering with free-look camera movement and the live FPS counter.*
 
@@ -24,10 +16,7 @@ This project is a compact, hands-on exploration of real-time rendering fundament
 
 | Hero render | Geometry detail | Alternate view |
 | --- | --- | --- |
-| <img width="1024" height="524" alt="12c2dd20-7d6c-4c9a-abab-e286f4367952" src="https://github.com/user-attachments/assets/2a4e3eb6-df9f-44fc-8db5-a0eb55693d54" />
-| <img width="1023" height="530" alt="e6a3e743-dc1d-41ba-8910-4d4aa56f7414" src="https://github.com/user-attachments/assets/83fb24d6-e79a-4614-8dd8-f9d3811ec769" />
-| <img width="1024" height="531" alt="572461c7-8c0a-4139-a2de-b96f0d573828" src="https://github.com/user-attachments/assets/c51d0dd7-f7c5-442e-ae4b-09c83352925e" />
- |
+| <img width="1024" height="524" alt="12c2dd20-7d6c-4c9a-abab-e286f4367952" src="https://github.com/user-attachments/assets/2a4e3eb6-df9f-44fc-8db5-a0eb55693d54" /> | <img width="1023" height="530" alt="e6a3e743-dc1d-41ba-8910-4d4aa56f7414" src="https://github.com/user-attachments/assets/83fb24d6-e79a-4614-8dd8-f9d3811ec769" /> | <img width="1024" height="531" alt="572461c7-8c0a-4139-a2de-b96f0d573828" src="https://github.com/user-attachments/assets/c51d0dd7-f7c5-442e-ae4b-09c83352925e" /> |
 
 ## Key Technical Highlights
 
