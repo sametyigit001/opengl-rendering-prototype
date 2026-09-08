@@ -8,8 +8,9 @@ This project is a compact, hands-on exploration of real-time rendering fundament
 
 ### Engine Demo
 
-![Interactive engine demo](https://github.com/user-attachments/assets/aa757f01-4685-4ac0-8e53-23e912bc458a
-))
+![Interactive engine demo](<video src="
+https://github.com/user-attachments/assets/ed77f1f3-cf55-49e2-ad0d-d6b9f093bba1
+" controls autoplay loop muted width="100%"></video>)
 
 
 
@@ -21,7 +22,9 @@ This project is a compact, hands-on exploration of real-time rendering fundament
 
 | Hero render | Geometry detail | Alternate view |
 | --- | --- | --- |
-| ![Stanford Lucy overview]() | ![Stanford Lucy close-up](<img width="1023" height="532" alt="e6a3e743-dc1d-41ba-8910-4d4aa56f7414" src="https://github.com/user-attachments/assets/04eb3b2a-703b-4a2a-8387-781974081aa5" />) | ![Stanford Lucy alternate angle](<img width="1024" height="531" alt="572461c7-8c0a-4139-a2de-b96f0d573828" src="https://github.com/user-attachments/assets/c51d0dd7-f7c5-442e-ae4b-09c83352925e" />
+| ![Stanford Lucy overview](<img width="1024" height="524" alt="12c2dd20-7d6c-4c9a-abab-e286f4367952" src="https://github.com/user-attachments/assets/2a4e3eb6-df9f-44fc-8db5-a0eb55693d54" />
+) | ![Stanford Lucy close-up](<img width="1023" height="530" alt="e6a3e743-dc1d-41ba-8910-4d4aa56f7414" src="https://github.com/user-attachments/assets/83fb24d6-e79a-4614-8dd8-f9d3811ec769" />
+) | ![Stanford Lucy alternate angle](<img width="1024" height="531" alt="572461c7-8c0a-4139-a2de-b96f0d573828" src="https://github.com/user-attachments/assets/c51d0dd7-f7c5-442e-ae4b-09c83352925e" />
 ) |
 
 ## Key Technical Highlights
