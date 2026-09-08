@@ -8,7 +8,12 @@ This project is a compact, hands-on exploration of real-time rendering fundament
 
 ### Engine Demo
 
-![Interactive engine demo](media/demo.gif)
+![Interactive engine demo]([media/demo.gif](https://github.com/user-attachments/assets/aa757f01-4685-4ac0-8e53-23e912bc458a
+))
+
+
+
+
 
 *Real-time Stanford Lucy rendering with free-look camera movement and the live FPS counter.*
 
@@ -16,7 +21,8 @@ This project is a compact, hands-on exploration of real-time rendering fundament
 
 | Hero render | Geometry detail | Alternate view |
 | --- | --- | --- |
-| ![Stanford Lucy overview](media/lucy-overview.png) | ![Stanford Lucy close-up](media/lucy-closeup.png) | ![Stanford Lucy alternate angle](media/lucy-alternate-angle.png) |
+| ![Stanford Lucy overview]() | ![Stanford Lucy close-up](<img width="1023" height="532" alt="e6a3e743-dc1d-41ba-8910-4d4aa56f7414" src="https://github.com/user-attachments/assets/04eb3b2a-703b-4a2a-8387-781974081aa5" />) | ![Stanford Lucy alternate angle](<img width="1024" height="531" alt="572461c7-8c0a-4139-a2de-b96f0d573828" src="https://github.com/user-attachments/assets/c51d0dd7-f7c5-442e-ae4b-09c83352925e" />
+) |
 
 ## Key Technical Highlights
 
