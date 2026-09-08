@@ -2,13 +2,15 @@
 
 Material::Material(std::shared_ptr<Texture> diffuse,
     std::shared_ptr<Texture> specular,
+    std::shared_ptr<Texture> opacity,
     float shininess,
     glm::vec3 specularColor)
+    : m_diffuseMap(std::move(diffuse)),
+    m_specularMap(std::move(specular)),
+    m_opacityMap(std::move(opacity)),
+    m_shininess(shininess),
+    m_specularColor(specularColor)
 {
-    m_diffuseMap = std::move(diffuse);
-    m_specularMap = std::move(specular);
-    m_shininess = shininess;
-    m_specularColor = specularColor;
 }
 
 Material::~Material() {}
@@ -29,6 +31,15 @@ void Material::bind(const Shader& shader) const {
         fallbackSpec();
     }
     shader.setInt("material.specular", TextureSlot::Specular);
+
+    if (m_opacityMap) {
+        m_opacityMap->bind(2);
+        shader.setInt("material.opacity", 2);
+        shader.setInt("material.hasOpacityMap", 1);
+    }
+    else {
+        shader.setInt("material.hasOpacityMap", 0);
+    }
 
     shader.setVec3("material.specularColor", m_specularColor);
     shader.setFloat("material.shininess", m_shininess);

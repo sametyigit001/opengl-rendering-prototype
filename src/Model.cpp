@@ -45,7 +45,7 @@ Model::Model(const std::string& path) {
 
 void Model::loadModel(std::string path) {
     Assimp::Importer importer;
-    const aiScene* scene = importer.ReadFile(path, aiProcess_Triangulate );
+    const aiScene* scene = importer.ReadFile(path, aiProcess_Triangulate | aiProcess_GenSmoothNormals);
 
     if (!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode) {
         std::cerr << "ASSIMP ERROR: " << importer.GetErrorString() << std::endl;
@@ -120,12 +120,17 @@ subMesh Model::processMesh(aiMesh* aiMesh, const aiScene* scene) {
         indices[idx + 2] = face.mIndices[2];
     }
 
+    for (const auto& v : vertices) {
+        this->localAABB.expand(v.position);
+    }
+
     std::shared_ptr<Material> mat = nullptr;
     if (aiMesh->mMaterialIndex >= 0) {
         aiMaterial* aiMat = scene->mMaterials[aiMesh->mMaterialIndex];
 
         auto diffuseMap = loadMaterialTexture(aiMat, aiTextureType_DIFFUSE);
         auto specularMap = loadMaterialTexture(aiMat, aiTextureType_SPECULAR);
+        auto opacityMap = loadMaterialTexture(aiMat, aiTextureType_OPACITY);
 
         float shininess = 32.0f;
         aiMat->Get(AI_MATKEY_SHININESS, shininess);
@@ -138,8 +143,9 @@ subMesh Model::processMesh(aiMesh* aiMesh, const aiScene* scene) {
         if (glm::length(specularColor) < 0.01f) {
             specularColor = glm::vec3(0.5f);
         }
+        
 
-        mat = std::make_shared<Material>(diffuseMap, specularMap, shininess, specularColor);
+        mat = std::make_shared<Material>(diffuseMap, specularMap,opacityMap, shininess, specularColor);
     }
     return subMesh{ mesh(std::move(vertices), std::move(indices)), mat };
 }
