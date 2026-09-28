@@ -13,14 +13,14 @@ void mouse_callback_handler(GLFWwindow* window, double xPos, double yPos);
 
 int main()
 {
-    Window window(800, 600, "test");
+    Window window(1920, 1080, "test");
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_MULTISAMPLE);
     glEnable(GL_CULL_FACE);
     glCullFace(GL_BACK);
     glFrontFace(GL_CCW);
     if (!window.isValid()) {
-        std::cout << "initializing error" << std::endl;
+        std::cout << "window initialization error" << std::endl;
         return 1;
     }
 
@@ -43,14 +43,20 @@ int main()
         lightManager lightMan;
         lightConfig config;
         config.type = lightTypes::directional;
+        config.direction = glm::normalize(glm::vec3(-0.2f, -1.0f, -0.3f));
+        config.ambient = glm::vec3(0.25f, 0.25f, 0.25f);
+        config.diffuse = glm::vec3(0.85f, 0.82f, 0.75f);
+        config.specular = glm::vec3(0.3f, 0.3f, 0.3f);
         lightMan.addLights(config);
 
-        Model backpack("assets/test3/source/lucy.ply");
-
+        Model body("C:/Users/Samet/source/repos/refactored_engine_code/assets/crytek-sponza/sponza.obj");
+        
+        
         glfwSwapInterval(1);
 
         while (!window.shouldClose()) {
-            glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+            window.pollevents();
+            glClearColor(0.08f, 0.08f, 0.09f, 1.0f);
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
             float currentFrame = static_cast<float>(glfwGetTime());
@@ -62,26 +68,32 @@ int main()
 
             camera.setAspect(windowWidth, windowHeight);
             camera.setSpeed(5);
-            camera.processInput(&window, deltaTime);
+           // camera.processInput(&window, deltaTime);
 
             shaders.use();
 
             shaders.setFloat("material.shininess", 32.0f);
             shaders.setInt("usedLight", lightMan.getSize());
-
+        
             lightMan.applyLights(shaders);
 
             shaders.setVec3("viewPos", camera.GetPosition());
 
-            glm::mat4 model = glm::mat4(1.0f);
+            
+
             shaders.setUniformProjection(camera.getProjectionMatrix());
             shaders.setUniformView(camera.getViewMatrix());
-            model = glm::translate(model, glm::vec3(0.0f, -2.0f, -5.0f));
-            model = glm::rotate(model, glm::radians(-90.0f), glm::vec3(1.0f,0.0f, 0.0f));
+            glm::mat4 model = glm::mat4(1.0f);
+           // model = glm::rotate(model, glm::radians(-90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
             model = glm::scale(model, glm::vec3(0.01f));
+           
             shaders.setUniformModel(model);
+            
+            glDisable(GL_CULL_FACE);
+            body.draw(shaders);
+            model = glm::mat4(1.0f); 
+            model = glm::translate(model, glm::vec3(2.0f, 2.0f, 2.0f));
 
-            backpack.draw(shaders);
 
             static double lastTime = glfwGetTime();
             static int nbFrames = 0;
@@ -93,9 +105,9 @@ int main()
                 nbFrames = 0;
                 lastTime += 1.0;
             }
-
+           // std::cout << camera.GetPosition().x << " " << camera.GetPosition().y << " " << camera.GetPosition().z << std::endl;
             window.swapbuffer();
-            window.pollevents();
+          
         }
 
     }
@@ -103,8 +115,8 @@ int main()
     return 0;
 }
 
-void mouse_callback_handler(GLFWwindow* window, double xPos, double yPos) {
+/*void mouse_callback_handler(GLFWwindow* window, double xPos, double yPos) {
     if (active_cam != nullptr) {
         active_cam->mouse_callback(window, xPos, yPos);
     }
-}
+}*/

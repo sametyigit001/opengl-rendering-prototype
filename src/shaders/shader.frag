@@ -35,11 +35,11 @@ struct Material {
 };
 
 uniform Material material;
-uniform int usedLightCount;
+uniform int u_isSelected;
 uniform vec3 viewPos;
 out vec4 fragColor;
 
-vec3 CalcLight(Light light, vec3 normal, vec3 fragPos, vec3 viewDir);
+vec3 CalcLight(Light light, vec3 normal, vec3 fragPos, vec3 viewDir, vec3 diffColor, vec3 specColor);
 
 void main()
 {
@@ -48,7 +48,6 @@ void main()
         discard;
     }
 
-    
     if (material.hasOpacityMap == 1) {
         float mask = texture(material.opacity, texCoords).r;
         if (mask < 0.5) {
@@ -64,15 +63,21 @@ void main()
     }
 
     vec3 viewDir = normalize(viewPos - fragPos);
+    vec3 specColor = vec3(texture(material.specular, texCoords)) * material.specularColor;
+    
     vec3 result = vec3(0.0);
     for (int i = 0; i < usedLight && i < NR_POINT_LIGHTS; i++) {
-        result += CalcLight(light[i], norm, fragPos, viewDir);
+        result += CalcLight(light[i], norm, fragPos, viewDir, texColor.rgb, specColor);
+    }
+
+    if(u_isSelected == 1){
+    result *= vec3(1.4,1.4,0.8);
     }
 
     fragColor = vec4(result, 1.0);
 }
 
-vec3 CalcLight(Light light, vec3 normal, vec3 fragPos, vec3 viewDir) {
+vec3 CalcLight(Light light, vec3 normal, vec3 fragPos, vec3 viewDir, vec3 diffColor, vec3 specColor) {
     vec3 lightDir;
     float attenuation = 1.0;
     float intensity = 1.0;
@@ -95,9 +100,9 @@ vec3 CalcLight(Light light, vec3 normal, vec3 fragPos, vec3 viewDir) {
     vec3 halfwayDir = normalize(lightDir + viewDir);
     float spec = pow(max(dot(normal, halfwayDir), 0.0), material.shininess);
 
-    vec3 ambient  = light.ambient  * vec3(texture(material.diffuse, texCoords));
-    vec3 diffuse  = light.diffuse  * diff * vec3(texture(material.diffuse, texCoords));
-    vec3 specular = light.specular * spec * vec3(texture(material.specular, texCoords)) * material.specularColor;
+    vec3 ambient  = light.ambient  * diffColor;
+    vec3 diffuse  = light.diffuse  * diff * diffColor;
+    vec3 specular = light.specular * spec * specColor;
 
     return (ambient + diffuse + specular) * attenuation * intensity;
-}
+}   

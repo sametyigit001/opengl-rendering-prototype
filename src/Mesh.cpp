@@ -34,4 +34,5 @@ void mesh::setupMesh() {
 	m_ebo.bufferData(this->m_meshIndices);
 	m_vao.build(m_vbo,m_ebo,{3,3,2});
 
+	
 }

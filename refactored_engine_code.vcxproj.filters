@@ -57,6 +57,15 @@
     <ClCompile Include="src\Model.cpp">
       <Filter>Classes</Filter>
     </ClCompile>
+    <ClCompile Include="src\bridge.cpp">
+      <Filter>Classes</Filter>
+    </ClCompile>
+    <ClCompile Include="src\winHost.cpp">
+      <Filter>Classes</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Scene.cpp">
+      <Filter>Classes</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\Window.h">
@@ -90,6 +99,21 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\Model.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\AABB.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\bridge.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\winHost.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Scene.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Ray.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
