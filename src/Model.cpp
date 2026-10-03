@@ -1,5 +1,7 @@
+#define GLM_ENABLE_EXPERIMENTAL
 #include "Model.h"
 #include "Ray.h"
+#include "glm/gtx/quaternion.hpp"
 #include <iostream>
 #include <filesystem>
 #include <vector>
@@ -49,7 +51,7 @@ Model::Model(const std::string& path) {
 
 void Model::loadModel(std::string path) {
     Assimp::Importer importer;
-    const aiScene* scene = importer.ReadFile(path, aiProcess_Triangulate | aiProcess_GenSmoothNormals|aiProcess_PreTransformVertices);
+    const aiScene* scene = importer.ReadFile(path, aiProcess_Triangulate | aiProcess_GenSmoothNormals);
 
     if (!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode) {
         std::cerr << "ASSIMP ERROR: " << importer.GetErrorString() << std::endl;
@@ -75,10 +77,40 @@ void Model::loadModel(std::string path) {
 }
 
 void Model::draw(Shader& shader) {
-    for (auto& submesh : m_meshes) {
-        shader.setInt("u_isSelected", submesh.isSelected ? 1 : 0);
-        if (submesh.material) {
-            submesh.geometry.Draw(shader, *submesh.material);
+    std::vector<glm::mat4> nodeWorld(m_nodes.size(), glm::mat4(1.0f));
+    const glm::mat4 modelWorld = getModelMatrix();
+
+    for (size_t i = 0;i < m_nodes.size();i++) {
+        const modelNode& node = m_nodes[i];
+
+        glm::mat4 local(1.0f);
+        local = glm::translate(local, node.position);
+        local = glm::rotate(local, glm::radians(node.rotation.x), { 1.0f,0.0f,0.0f });
+        local = glm::rotate(local, glm::radians(node.rotation.y), { 0.0f,1.0f,0.0f });
+        local = glm::rotate(local, glm::radians(node.rotation.z), { 0.0f,0.0f,1.0f });
+        local = glm::scale(local, node.scale);
+
+        if (node.parentIndex >= 0) {
+            nodeWorld[i] = nodeWorld[node.parentIndex] * local;
+        }
+        else {
+            nodeWorld[i] = local;
+        }
+
+        for (int meshIndex : node.meshIndices) {
+            m_meshes[meshIndex].modelAABB =
+                transformAABB(m_meshes[meshIndex].localAABB, nodeWorld[i]);
+        }
+
+        for (int meshIndex : node.meshIndices) {
+            subMesh& submesh = m_meshes[meshIndex];
+
+            shader.setUniformModel(modelWorld * nodeWorld[i]);
+            shader.setInt("u_isSelected", submesh.isSelected ? 1 : 0);
+
+            if (submesh.material) {
+                submesh.geometry.Draw(shader, *submesh.material);
+            }
         }
     }
 }
@@ -87,6 +119,17 @@ int Model::processNode(aiNode* node, const aiScene* scene,int parentIndex) {
     modelNode engineNode;
     engineNode.name = node->mName.C_Str();
     engineNode.parentIndex = parentIndex;
+    aiVector3D aiPosition;
+    aiVector3D aiScale;
+    aiQuaternion aiRotation;
+
+    node->mTransformation.Decompose(aiScale, aiRotation, aiPosition);
+
+    engineNode.position = glm::vec3(aiPosition.x, aiPosition.y, aiPosition.z);
+    engineNode.scale = glm::vec3(aiScale.x, aiScale.y, aiScale.z);
+    glm::quat rotation(aiRotation.w,aiRotation.x, aiRotation.y, aiRotation.z);
+    engineNode.rotation = glm::degrees(glm::eulerAngles(rotation));
+
 
     int currentIndex = static_cast<int>(m_nodes.size());
 
@@ -166,9 +209,9 @@ subMesh Model::processMesh(aiMesh* aiMesh, const aiScene* scene) {
     if (aiMesh->mMaterialIndex >= 0) {
         aiMaterial* aiMat = scene->mMaterials[aiMesh->mMaterialIndex];
 
-        auto diffuseMap = loadMaterialTexture(aiMat, aiTextureType_DIFFUSE);
-        auto specularMap = loadMaterialTexture(aiMat, aiTextureType_SPECULAR);
-        auto opacityMap = loadMaterialTexture(aiMat, aiTextureType_OPACITY);
+        auto diffuseMap = loadMaterialTexture(aiMat, aiTextureType_DIFFUSE,scene);
+        auto specularMap = loadMaterialTexture(aiMat, aiTextureType_SPECULAR,scene);
+        auto opacityMap = loadMaterialTexture(aiMat, aiTextureType_OPACITY,scene);
 
         float shininess = 32.0f;
         aiMat->Get(AI_MATKEY_SHININESS, shininess);
@@ -187,7 +230,7 @@ subMesh Model::processMesh(aiMesh* aiMesh, const aiScene* scene) {
     }
     return subMesh{ mesh(std::move(vertices), std::move(indices)), mat,submeshAABB,false };
 }
-std::shared_ptr<Texture> Model::loadMaterialTexture(aiMaterial* mat, aiTextureType type) {
+std::shared_ptr<Texture> Model::loadMaterialTexture(aiMaterial* mat, aiTextureType type, const aiScene* scene) {
     if (mat->GetTextureCount(type) == 0) {
         if (type == aiTextureType_DIFFUSE && mat->GetTextureCount(aiTextureType_BASE_COLOR) > 0) {
             type = aiTextureType_BASE_COLOR;
@@ -206,6 +249,41 @@ std::shared_ptr<Texture> Model::loadMaterialTexture(aiMaterial* mat, aiTextureTy
     std::cout << "[Assimp] Raw texture path in model: " << rawPath << std::endl;
 
     if (!rawPath.empty() && rawPath[0] == '*') {
+        // Assimp's embedded texture references look like "*0", "*1", etc.
+        const int textureIndex = std::stoi(rawPath.substr(1));
+
+        if (textureIndex < 0 ||
+            textureIndex >= static_cast<int>(scene->mNumTextures)) {
+            return nullptr;
+        }
+
+        const aiTexture* embedded = scene->mTextures[textureIndex];
+
+        if (embedded->mHeight == 0) {
+            // Compressed PNG/JPEG/etc. data: decode it with stb_image.
+            int width = 0;
+            int height = 0;
+            int channels = 0;
+
+            unsigned char* pixels = stbi_load_from_memory(
+                reinterpret_cast<const unsigned char*>(embedded->pcData),
+                static_cast<int>(embedded->mWidth), // compressed byte count
+                &width,
+                &height,
+                &channels,
+                0);
+
+            if (!pixels) {
+                return nullptr;
+            }
+
+            auto texture = std::make_shared<Texture>(pixels, width, height, channels);
+            stbi_image_free(pixels);
+            return texture;
+        }
+
+        // Uncompressed Assimp texels need conversion to RGBA bytes
+        // before passing them to Texture.
         return nullptr;
     }
 
@@ -243,82 +321,130 @@ void Model::selectNode(int index)
     }
 }
 
-bool Model::pickSubMeshes(const ray& localRay, float& outDist) {
+int Model::pickSubMeshes(const ray& localRay, float& outDist) {
     float closestDist = (std::numeric_limits<float>::max)();
-    subMesh* hitMesh = nullptr;
+    int hitMeshIndex = -1;
 
-    float globalDist = 0.0f;
-    if (!m_AABB.intersects(localRay, globalDist)) {
-        std::cout << "[Broad-Phase] Failed Global AABB. Ray completely missed the model bounds.\n";
-        for (auto& sm : m_meshes) sm.isSelected = false;
-        return false;
+    // Build the accumulated node transform for each mesh.
+    std::vector<glm::mat4> nodeWorld(m_nodes.size(), glm::mat4(1.0f));
+    std::vector<glm::mat4> meshNodeWorld(m_meshes.size(), glm::mat4(1.0f));
+
+    for (size_t nodeIndex = 0; nodeIndex < m_nodes.size(); ++nodeIndex) {
+        const modelNode& node = m_nodes[nodeIndex];
+
+        glm::mat4 local(1.0f);
+        local = glm::translate(local, node.position);
+        local = glm::rotate(
+            local, glm::radians(node.rotation.x), { 1.0f, 0.0f, 0.0f });
+        local = glm::rotate(
+            local, glm::radians(node.rotation.y), { 0.0f, 1.0f, 0.0f });
+        local = glm::rotate(
+            local, glm::radians(node.rotation.z), { 0.0f, 0.0f, 1.0f });
+
+        nodeWorld[nodeIndex] = node.parentIndex >= 0
+            ? nodeWorld[node.parentIndex] * local
+            : local;
+
+        for (int meshIndex : node.meshIndices) {
+            if (meshIndex >= 0 &&
+                static_cast<size_t>(meshIndex) < meshNodeWorld.size()) {
+                meshNodeWorld[meshIndex] = nodeWorld[nodeIndex];
+            }
+        }
     }
-
-    std::cout << "[Broad-Phase] Passed Global AABB! Checking submeshes...\n";
 
     int submeshHits = 0;
     int triHits = 0;
 
-    for (auto& sm : m_meshes) {
+    for (size_t meshIndex = 0; meshIndex < m_meshes.size(); ++meshIndex) {
+        subMesh& sm = m_meshes[meshIndex];
         sm.isSelected = false;
+
+        const glm::mat4& nodeMatrix = meshNodeWorld[meshIndex];
+
+        // Keep localAABB unchanged; refresh its transformed model-space copy.
+        sm.modelAABB = transformAABB(sm.localAABB, nodeMatrix);
+
         float aabbDist = 0.0f;
+        if (!sm.modelAABB.intersects(localRay, aabbDist)) {
+            continue;
+        }
 
-        if (sm.localAABB.intersects(localRay, aabbDist)) {
-            submeshHits++;
-            const auto& vertices = sm.geometry.getVertices();
-            const auto& indices = sm.geometry.getIndices();
+        ++submeshHits;
 
-            bool hitTriangle = false;
-            float closestTriDist = (std::numeric_limits<float>::max)();
+        const auto& vertices = sm.geometry.getVertices();
+        const auto& indices = sm.geometry.getIndices();
 
-            if (!indices.empty()) {
-                for (size_t i = 0; i < indices.size(); i += 3) {
-                    glm::vec3 v0 = vertices[indices[i]].position;
-                    glm::vec3 v1 = vertices[indices[i + 1]].position;
-                    glm::vec3 v2 = vertices[indices[i + 2]].position;
+        auto toModelSpace = [&nodeMatrix](const glm::vec3& point) {
+            return glm::vec3(nodeMatrix * glm::vec4(point, 1.0f));
+            };
 
-                    float triDist = 0.0f;
-                    if (intersectTriangle(localRay, v0, v1, v2, triDist)) {
-                        triHits++;
-                        if (triDist < closestTriDist) {
-                            closestTriDist = triDist;
-                            hitTriangle = true;
-                        }
-                    }
+        bool hitTriangle = false;
+        float closestTriDist = (std::numeric_limits<float>::max)();
+
+        auto testTriangle = [&](size_t i0, size_t i1, size_t i2) {
+            const glm::vec3 v0 = toModelSpace(vertices[i0].position);
+            const glm::vec3 v1 = toModelSpace(vertices[i1].position);
+            const glm::vec3 v2 = toModelSpace(vertices[i2].position);
+
+            float triDist = 0.0f;
+            if (intersectTriangle(localRay, v0, v1, v2, triDist)) {
+                ++triHits;
+                if (triDist < closestTriDist) {
+                    closestTriDist = triDist;
+                    hitTriangle = true;
                 }
             }
-            else {
-                for (size_t i = 0; i < vertices.size(); i += 3) {
-                    glm::vec3 v0 = vertices[i].position;
-                    glm::vec3 v1 = vertices[i + 1].position;
-                    glm::vec3 v2 = vertices[i + 2].position;
+            };
 
-                    float triDist = 0.0f;
-                    if (intersectTriangle(localRay, v0, v1, v2, triDist)) {
-                        triHits++;
-                        if (triDist < closestTriDist) {
-                            closestTriDist = triDist;
-                            hitTriangle = true;
-                        }
-                    }
-                }
+        if (!indices.empty()) {
+            for (size_t i = 0; i + 2 < indices.size(); i += 3) {
+                testTriangle(indices[i], indices[i + 1], indices[i + 2]);
             }
+        }
+        else {
+            for (size_t i = 0; i + 2 < vertices.size(); i += 3) {
+                testTriangle(i, i + 1, i + 2);
+            }
+        }
 
-            if (hitTriangle && closestTriDist < closestDist) {
-                closestDist = closestTriDist;
-                hitMesh = &sm;
-            }
+        if (hitTriangle && closestTriDist < closestDist) {
+            closestDist = closestTriDist;
+            hitMeshIndex = static_cast<int>(meshIndex);
         }
     }
 
     std::cout << "[Narrow-Phase] Submesh AABBs Hit: " << submeshHits
         << " | Total Triangles Hit: " << triHits << "\n";
 
-    if (hitMesh) {
-        hitMesh->isSelected = true;
+    if (hitMeshIndex >= 0) {
+        m_meshes[hitMeshIndex].isSelected = true;
         outDist = closestDist;
-        return true;
     }
 
-    return false;
+    return hitMeshIndex;
+}
+
+AABB Model::transformAABB(const AABB& local, const glm::mat4& nodeWorld)
+{
+    AABB result; // min/max start at extreme values
+
+    for (int x = 0; x < 2; ++x) {
+        for (int y = 0; y < 2; ++y) {
+            for (int z = 0; z < 2; ++z) {
+                glm::vec3 corner(
+                    x ? local.max.x : local.min.x,
+                    y ? local.max.y : local.min.y,
+                    z ? local.max.z : local.min.z
+                );
+
+                glm::vec3 modelCorner =
+                    glm::vec3(nodeWorld * glm::vec4(corner, 1.0f));
+
+                result.expand(modelCorner);
+            }
+        }
+    }
+
+    return result;
 }

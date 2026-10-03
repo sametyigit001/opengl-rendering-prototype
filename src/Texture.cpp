@@ -11,6 +11,7 @@ Texture::Texture(const char* path, texType type, const textureConfig& config)
 
     unsigned char* data = stbi_load(path, &m_width, &m_height, &m_channels, 0);
 
+   
     switch (m_type) {
     case(texType::tex2d): {
         glBindTexture(GL_TEXTURE_2D, m_textureID);
@@ -69,6 +70,11 @@ Texture::Texture(const char* path, texType type, const textureConfig& config)
 Texture::Texture(const unsigned char* data, int width, int height, int channels)
     : m_type(texType::tex2d), m_slot(0), m_width(width), m_height(height), m_channels(channels)
 {
+
+    std::cout << "[Texture] Embedded upload: "
+        << width << "x" << height
+        << ", channels=" << channels << '\n';
+
     glGenTextures(1, &m_textureID);
     glBindTexture(GL_TEXTURE_2D, m_textureID);
 

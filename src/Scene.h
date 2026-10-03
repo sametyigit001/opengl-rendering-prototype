@@ -13,6 +13,7 @@
 #include "Lights.h"
 #include "Ray.h"
 
+
 class Scene {
 public:
 	Scene(uint32_t width,uint32_t height);
@@ -26,8 +27,10 @@ public:
 	void onMouseMove(float xOffset, float yOffset);
 	void onMouseScroll(float offset);
 	void loadModel(const std::string& path);
-	bool pick(float mouseX, float mouseY);
+	int pick(float mouseX, float mouseY);
 	void deleteModel() { m_model = nullptr; };
+	int updateMeshAABB(int meshIndex);
+	ray toModelLocalRay(ray worldRay);
 	Model* getModel() { return m_model.get(); };
 private:
 	uint32_t m_width;

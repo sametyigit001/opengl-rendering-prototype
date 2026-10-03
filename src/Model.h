@@ -15,6 +15,7 @@ struct subMesh {
 	std::shared_ptr<Material> material;
 	AABB localAABB;
 	bool isSelected = false;
+	AABB modelAABB;
 };
 
 struct modelNode {
@@ -37,8 +38,9 @@ public:
 	int processNode(aiNode* node,const aiScene* scene, int parentIndex);
 	void draw(Shader& shader);
 	void selectNode(int index);
-	bool pickSubMeshes(const ray& localray, float& outdist);
+	int pickSubMeshes(const ray& localray, float& outdist);
 	subMesh processMesh(aiMesh* mesh, const aiScene* scene);
+	AABB transformAABB(const AABB& local, const glm::mat4& nodeWorld);
 
 	glm::vec3 position{ 0.0f };
 	glm::vec3 rotation{ 0.0f };
@@ -58,12 +60,33 @@ public:
 	}
 
 	const std::vector<modelNode>& getNodes()const { return m_nodes; }
+	bool setNodePos(int index, float x, float y, float z) {
+		if (index < 0 || static_cast<size_t>(index) >= m_nodes.size()) {
+			return false;
+		}
+		m_nodes[index].position = { x,y,z };
+		return true;
+	};
+	bool setNodeRotation(int index, float x, float y, float z) {
+		if (index < 0 || static_cast<size_t>(index) >= m_nodes.size()) {
+			return false;
+		}
+		m_nodes[index].rotation = { x,y,z };
+		return true;
+	};
+	bool setNodeScale(int index, float x, float y, float z) {
+		if (index < 0 || static_cast<size_t>(index) >= m_nodes.size()) {
+			return false;
+		}
+		m_nodes[index].scale = { x,y,z };
+		return true;
+	};
 private:
 	AABB m_AABB;
 	glm::mat4 normMat{1.0f};
 	std::vector<subMesh> m_meshes;
 	std::string directory;
-	std::shared_ptr<Texture> loadMaterialTexture(aiMaterial* mat, aiTextureType type);
+	std::shared_ptr<Texture> loadMaterialTexture(aiMaterial* mat, aiTextureType type,const aiScene* scene);
 	std::unordered_map<std::string, std::shared_ptr<Texture>> m_loadedTextures;
 	std::vector<modelNode> m_nodes;
 };

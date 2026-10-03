@@ -82,8 +82,8 @@ void Scene::loadModel(const std::string& path) {
 	}
 }
 
-bool Scene::pick(float mouseX, float mouseY) {
-	if (!m_model) return false;
+int Scene::pick(float mouseX, float mouseY) {
+	if (!m_model) return -1;
 
 	std::cout << "\n--- NEW CLICK ---\n";
 	std::cout << "[RayGen] Mouse: (" << mouseX << ", " << mouseY
@@ -95,20 +95,39 @@ bool Scene::pick(float mouseX, float mouseY) {
 	camConf.view = m_cam->getViewMatrix();
 
 	ray worldRay = ray::rayGen(mouseX, mouseY, static_cast<float>(m_width), static_cast<float>(m_height), camConf);
-	glm::mat4 invModel = glm::inverse(m_model->getModelMatrix());
+	
+	ray local = toModelLocalRay(worldRay);
+	float outdist = 0.0f;
+	int meshIndex = m_model->pickSubMeshes(local, outdist);
 
+	auto& nodes = m_model->getNodes();
+
+	if (meshIndex == -1) {
+		return -1;
+	}
+	for (int nodeIndex = 0;nodeIndex < nodes.size();nodeIndex++) {
+		for (int ownedMeshIndex : nodes[nodeIndex].meshIndices) {
+			if (ownedMeshIndex == meshIndex) {
+				return static_cast<int>(nodeIndex);
+			}
+		}
+	}
+	return -1;
+};
+int Scene::updateMeshAABB(int meshIndex) {
+	if (!m_model) return -1;
+}
+
+ray Scene::toModelLocalRay(ray worldRay) {
+	if (!m_model) return ray{};
+
+	glm::mat4 invModel = glm::inverse(m_model->getModelMatrix());
 	ray local;
 	local.origin = glm::vec3(invModel * glm::vec4(worldRay.origin, 1.0f));
 	local.direction = glm::normalize(glm::vec3(invModel * glm::vec4(worldRay.direction, 0.0f)));
 
-	float outdist = 0.0f;
-	bool hit = m_model->pickSubMeshes(local, outdist);
+	return local;
 
-	if (hit) {
-		std::cout << ">>> FINAL RESULT: HIT at dist " << outdist << " <<<\n";
-	}
-	else {
-		std::cout << ">>> FINAL RESULT: MISS <<<\n";
-	}
-	return hit;
-};
+	
+}
+	

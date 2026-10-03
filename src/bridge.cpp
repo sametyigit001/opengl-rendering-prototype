@@ -30,6 +30,7 @@ static std::unique_ptr<Scene> scene = nullptr;
 
 // Threading controls
 static std::atomic<bool> g_Running(false);
+static std::atomic<bool> g_modelLoad(false);
 static std::thread g_RenderThread;
 
 // Thread-safe resize pending states
@@ -105,6 +106,7 @@ static void renderWorker() {
             if (scene && !copyPath.empty()) {
                 scene->loadModel(copyPath);
             }
+            g_modelLoad.store(false, std::memory_order_release);
         } 
         {
             std::lock_guard<std::mutex> lock(g_sceneMutex);
@@ -224,15 +226,16 @@ extern "C" {
             std::lock_guard<std::mutex> lock(g_pathMutex);
             g_pendingPath = path;
         }
+        g_modelLoad.store(true, std::memory_order_release);
         g_needLoad.store(true, std::memory_order_release);
     }
 
-    BRIDGE_API bool __cdecl pick(float mouseX, float mouseY) {
+    BRIDGE_API int __cdecl pick(float mouseX, float mouseY) {
         std::lock_guard<std::mutex> lock(g_sceneMutex);
         if (scene) {
-          return scene->pick(mouseX, mouseY);
+            return scene->pick(mouseX, mouseY);
         }
-        return false;
+        return -1;
     }
     BRIDGE_API void __cdecl deleteModel() {
         if (scene) {
@@ -271,9 +274,147 @@ extern "C" {
         }
         return "unknown";
     }
-    BRIDGE_API void __cdecl hostSelectNode(int index) {
-        if (scene && scene->getModel()) {
-            scene->getModel()->selectNode(index);
+    BRIDGE_API int __cdecl hostGetNodePos(int index, float* x, float* y, float* z) {
+        if (!scene || !scene->getModel() || !x || !y || !z) {
+            return 0;
+        }
+        Model* model = scene->getModel();
+        const auto& nodes = model->getNodes();
+
+        if (index == -1) {
+            const glm::vec3& position = model->position;
+            *x = position.x;
+            *y = position.y;
+            *z = position.z;
+        }
+        else {
+            if (index < 0 || static_cast<size_t>(index >= nodes.size())) {
+                return 0;
+            }
+
+            const glm::vec3& position = nodes[index].position;
+            *x = position.x;
+            *y = position.y;
+            *z = position.z;
+        }
+
+
+        return 1;
+    }
+    BRIDGE_API int __cdecl hostGetNodeScale(int index, float* x, float* y, float* z) {
+        if (!scene || !scene->getModel() || !x || !y || !z) {
+            return 0;
+        }
+        Model* model = scene->getModel();
+        const auto& nodes = model->getNodes();
+
+        if (index == -1) {
+            const glm::vec3& scale = model->scale;
+            *x = scale.x;
+            *y = scale.y;
+            *z = scale.z;
+        }
+        else {
+            if (index < 0 || static_cast<size_t>(index >= nodes.size())) {
+                return 0;
+            }
+
+            const glm::vec3& scale = nodes[index].scale;
+            *x = scale.x;
+            *y = scale.y;
+            *z = scale.z;
+        }
+
+
+        return 1;
+    }
+    BRIDGE_API int __cdecl hostGetNodeRotation(int index, float* x, float* y, float* z) {
+        if (!scene || !scene->getModel() || !x || !y || !z) {
+            return 0;
+        }
+        Model* model = scene->getModel();
+        const auto& nodes = model->getNodes();
+
+        if (index == -1) {
+            const glm::vec3& rotation = model->rotation;
+            *x = rotation.x;
+            *y = rotation.y;
+            *z = rotation.z;
+        }
+        else {
+            if (index < 0 || static_cast<size_t>(index >= nodes.size())) {
+                return 0;
+            }
+
+            const glm::vec3& rotation = nodes[index].rotation;
+            *x = rotation.x;
+            *y = rotation.y;
+            *z = rotation.z;
+        }
+
+
+        return 1;
+    }
+    BRIDGE_API int __cdecl hostSelectNode(int index) {
+        if (!scene || !scene->getModel()) {
+            return 0;
+        }
+        Model* model = scene->getModel();
+
+        model->selectNode(index);
+        return 1;
+
+    }
+    BRIDGE_API bool __cdecl hostIsModelLoadInProgress() {
+        return g_modelLoad.load(std::memory_order_acquire);
+    }
+    BRIDGE_API void __cdecl hostSetNodePos(int index, float x, float y, float z) {
+        if (!scene || !scene->getModel()) {
+            return;
+        }
+
+        Model* model = scene->getModel();
+        if (index == -1) {
+            model->position.x = x;
+            model->position.y = y;
+            model->position.z = z;
+        }
+        else {
+             model->setNodePos(index, x, y, z);
         }
     }
+
+    BRIDGE_API void __cdecl hostSetNodeRotation(int index, float x, float y, float z) {
+        if (!scene || !scene->getModel()) {
+            return;
+        }
+
+        Model* model = scene->getModel();
+        if (index == -1) {
+            model->rotation.x = x;
+            model->rotation.y = y;
+            model->rotation.z = z;
+        }
+        else {
+            model->setNodeRotation(index, x, y, z);
+        }
+    }
+
+    BRIDGE_API void __cdecl hostSetNodeScale(int index, float x, float y, float z) {
+        if (!scene || !scene->getModel()) {
+            return;
+        }
+
+        Model* model = scene->getModel();
+        if (index == -1) {
+            model->scale.x = x;
+            model->scale.y = y;
+            model->scale.z = z;
+        }
+        else {
+            model->setNodeScale(index, x, y, z);
+        }
+    }
+
+
 }
