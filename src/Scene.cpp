@@ -19,7 +19,9 @@ Scene::Scene(uint32_t width, uint32_t height) : m_height(height), m_width(width)
 	m_cam->setSpeed(10.0f);
 	m_cam->setAspect(width,height);
 	m_shader = std::make_unique<Shader>("C:/Users/Samet/source/repos/refactored_engine_code/src/shaders/shader.vert","C:/Users/Samet/source/repos/refactored_engine_code/src/shaders/shader.frag");
-	m_model = nullptr;
+	for (auto& m : m_model) {
+		m = nullptr;
+	}
 }
 
 void Scene::resize(uint32_t width, uint32_t height) {
@@ -35,21 +37,34 @@ void Scene::resize(uint32_t width, uint32_t height) {
 void Scene::render() {
 	glClearColor(0.12f, 0.12f, 0.15f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
 	glEnable(GL_DEPTH_TEST);
+	for (const auto& m : m_model)
+	{
+		if (m != nullptr) {
+		}
+	}
+	if (!m_shader) return;
+	for (const auto& m : m_model) {
+		if (!m) continue;
+		else {
+			if (m->enableWireframe) {
+				glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+			}
+			else {
+				glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+			}
+			m_shader->use();
 
-	if (!m_shader || !m_model) return;
+			m_shader->setUniformView(m_cam->getViewMatrix());
+			m_shader->setUniformProjection(m_cam->getProjectionMatrix());
+			m_shader->setUniformModel(m->getModelMatrix());
 
-	m_shader->use();
 
-	m_shader->setUniformView(m_cam->getViewMatrix());
-	m_shader->setUniformProjection(m_cam->getProjectionMatrix());
-	m_shader->setUniformModel(m_model->getModelMatrix());
-	
+			m_lightMan.applyLights(*m_shader);
 
-	m_lightMan.applyLights(*m_shader);
-
-	m_model->draw(*m_shader);
+			m->draw(*m_shader);
+		}
+	}
 }
 void Scene::onKeyboardInput(int direction,float deltatime)
 {
@@ -67,24 +82,37 @@ void Scene::onMouseMove(float xoffset, float yoffset) {
 	m_cam->mouse_callback(xoffset, yoffset);
 }
 
-void Scene::loadModel(const std::string& path) {
+int Scene::loadModel(const std::string& path) {
 	std::cout << "\n[Engine] Attempting to load model at: " << path << "\n";
+	int currentIndex{-1};
 	try {
-		m_model = std::make_unique<Model>(path);
+		m_model.push_back(std::make_unique<Model>(path));
+		currentIndex = m_model.size() - 1;
+		m_model[currentIndex].get()->setIndex(currentIndex);
 
-		if (m_model) {
-			std::cout << "[Engine] Model loaded! Node count: " << m_model->getNodes().size() << "\n";
+		if (m_model[currentIndex]) {
+			std::cout << "core:model loaded node count: " << m_model[currentIndex]->getNodes().size() << "\n";
 		}
+		return currentIndex;
 	}
 	catch (...) {
-		std::cout << "[Engine] FATAL ERROR: Exception thrown during model load!\n";
-		m_model = nullptr;
+		std::cout << "core:error during Scene::modelLoad\n";
+		m_model[currentIndex] = nullptr;
 	}
 }
 
-int Scene::pick(float mouseX, float mouseY) {
-	if (!m_model) return -1;
-
+storeIndexes Scene::pick(float mouseX, float mouseY) {
+	bool hasModel = false;
+	for(const auto& m :m_model)
+	{
+		if (m != nullptr) {
+			hasModel = true;
+			break;
+		}
+		hasModel = false;
+		continue;
+	}
+	if (!hasModel) return storeIndexes{false};
 	std::cout << "\n--- NEW CLICK ---\n";
 	std::cout << "[RayGen] Mouse: (" << mouseX << ", " << mouseY
 		<< ") | Screen: (" << m_width << ", " << m_height << ")\n";
@@ -95,33 +123,44 @@ int Scene::pick(float mouseX, float mouseY) {
 	camConf.view = m_cam->getViewMatrix();
 
 	ray worldRay = ray::rayGen(mouseX, mouseY, static_cast<float>(m_width), static_cast<float>(m_height), camConf);
+	int meshIndex;
 	
-	ray local = toModelLocalRay(worldRay);
-	float outdist = 0.0f;
-	int meshIndex = m_model->pickSubMeshes(local, outdist);
+	for (size_t i = 0;i < m_model.size();i++) {
+		Model* model = m_model[i].get();
 
-	auto& nodes = m_model->getNodes();
+		if (!model) continue;
 
-	if (meshIndex == -1) {
-		return -1;
-	}
-	for (int nodeIndex = 0;nodeIndex < nodes.size();nodeIndex++) {
-		for (int ownedMeshIndex : nodes[nodeIndex].meshIndices) {
-			if (ownedMeshIndex == meshIndex) {
-				return static_cast<int>(nodeIndex);
+		
+		ray local = toModelLocalRay(worldRay,model->getModelMatrix());
+		float outdist = 0.0f;
+		meshIndex = model->pickSubMeshes(local, outdist);
+
+		auto& nodes = model->getNodes();
+
+		if (meshIndex == -1) {
+			continue;
+		}
+
+		for (int nodeIndex = 0;nodeIndex < nodes.size();nodeIndex++) {
+			for (int ownedMeshIndex : nodes[nodeIndex].meshIndices) {
+				if (ownedMeshIndex == meshIndex) {
+
+					storeIndexes id;
+					id.modelIndex = static_cast<int>(i);
+					id.nodeIndex = static_cast<int>(nodeIndex);
+					id.selected = true;
+					return id;
+				}
 			}
 		}
 	}
-	return -1;
+	return storeIndexes{false};
 };
-int Scene::updateMeshAABB(int meshIndex) {
-	if (!m_model) return -1;
-}
 
-ray Scene::toModelLocalRay(ray worldRay) {
-	if (!m_model) return ray{};
 
-	glm::mat4 invModel = glm::inverse(m_model->getModelMatrix());
+ray Scene::toModelLocalRay(ray worldRay,const glm::mat4& modelMat) {
+	
+	glm::mat4 invModel = glm::inverse(modelMat);
 	ray local;
 	local.origin = glm::vec3(invModel * glm::vec4(worldRay.origin, 1.0f));
 	local.direction = glm::normalize(glm::vec3(invModel * glm::vec4(worldRay.direction, 0.0f)));
@@ -130,4 +169,9 @@ ray Scene::toModelLocalRay(ray worldRay) {
 
 	
 }
-	
+void Scene::selectModel(int modelIndex) {
+	const auto& model = m_model[modelIndex].get();
+	model->selectModel();
+
+
+}

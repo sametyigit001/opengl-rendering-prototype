@@ -27,10 +27,12 @@ struct modelNode {
 	glm::vec3 position{ 0.0f };
 	glm::vec3 rotation{ 0.0f };
 	glm::vec3 scale{ 1.0f };
+	
 };
 
 class Model {
 public:
+	bool enableWireframe = false;
 	const AABB& getAABB() const { return m_AABB; }
 	const glm::mat4& getNorm() const { return normMat; }
 	Model(const std::string& path);
@@ -41,11 +43,13 @@ public:
 	int pickSubMeshes(const ray& localray, float& outdist);
 	subMesh processMesh(aiMesh* mesh, const aiScene* scene);
 	AABB transformAABB(const AABB& local, const glm::mat4& nodeWorld);
+	void selectModel();
+	void clearSelection();
 
 	glm::vec3 position{ 0.0f };
 	glm::vec3 rotation{ 0.0f };
 	glm::vec3 scale{ 1.0f };
-	
+	bool isChanged = false;
 
 	glm::mat4 getModelMatrix() const {
 		glm::mat4 model = glm::mat4(1.0f);
@@ -60,11 +64,17 @@ public:
 	}
 
 	const std::vector<modelNode>& getNodes()const { return m_nodes; }
+	void deselectMesh() {
+		for (auto& m : m_meshes) {
+			m.isSelected = false;
+		}
+	}
 	bool setNodePos(int index, float x, float y, float z) {
 		if (index < 0 || static_cast<size_t>(index) >= m_nodes.size()) {
 			return false;
 		}
 		m_nodes[index].position = { x,y,z };
+		isChanged = true;
 		return true;
 	};
 	bool setNodeRotation(int index, float x, float y, float z) {
@@ -72,6 +82,7 @@ public:
 			return false;
 		}
 		m_nodes[index].rotation = { x,y,z };
+		isChanged = true;
 		return true;
 	};
 	bool setNodeScale(int index, float x, float y, float z) {
@@ -79,7 +90,11 @@ public:
 			return false;
 		}
 		m_nodes[index].scale = { x,y,z };
+		isChanged = true;
 		return true;
+	};
+	void setIndex(int index) {
+		m_index = index;
 	};
 private:
 	AABB m_AABB;
@@ -89,6 +104,7 @@ private:
 	std::shared_ptr<Texture> loadMaterialTexture(aiMaterial* mat, aiTextureType type,const aiScene* scene);
 	std::unordered_map<std::string, std::shared_ptr<Texture>> m_loadedTextures;
 	std::vector<modelNode> m_nodes;
+	int m_index;
 };
 
 #endif // !MODEL_H

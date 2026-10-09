@@ -32,11 +32,14 @@ static std::unique_ptr<Scene> scene = nullptr;
 static std::atomic<bool> g_Running(false);
 static std::atomic<bool> g_modelLoad(false);
 static std::thread g_RenderThread;
+static std::atomic<double> g_latestFps(0.0);
+static std::atomic<double> g_latestFrameTimeMs(0.0);
 
 // Thread-safe resize pending states
 static std::atomic<uint32_t> g_PendingWidth(0);
 static std::atomic<uint32_t> g_PendingHeight(0);
 static std::atomic<bool>     g_NeedsResize(false);
+static std::atomic<int>      modelIndex = -1;
 
 typedef BOOL(WINAPI* PFNWGLSWAPINTERVALEXTPROC)(int interval);
 
@@ -49,7 +52,7 @@ static bool initWGL(HWND hwnd) {
     pfd.dwFlags = PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER;
     pfd.iPixelType = PFD_TYPE_RGBA;
     pfd.cColorBits = 32;
-    pfd.cDepthBits = 24;          // 24-bit depth precision
+    pfd.cDepthBits = 24;
     pfd.cStencilBits = 8;
     pfd.iLayerType = PFD_MAIN_PLANE;
 
@@ -104,7 +107,7 @@ static void renderWorker() {
             }
             std::lock_guard<std::mutex> lock(g_sceneMutex);
             if (scene && !copyPath.empty()) {
-                scene->loadModel(copyPath);
+               modelIndex.store(scene->loadModel(copyPath),std::memory_order_release);
             }
             g_modelLoad.store(false, std::memory_order_release);
         } 
@@ -125,6 +128,9 @@ static void renderWorker() {
             double fps = frameCount / elapsedSec;
             double frameTimeMs = (elapsedSec / frameCount) * 1000.0;
 
+            g_latestFps.store(fps, std::memory_order_relaxed);
+            g_latestFrameTimeMs.store(frameTimeMs, std::memory_order_relaxed);
+
             char buf[128];
             sprintf_s(buf, "[Engine Render Thread] FPS: %.1f | FrameTime: %.2f ms\n", fps, frameTimeMs);
             OutputDebugStringA(buf);
@@ -140,6 +146,9 @@ static void renderWorker() {
 
 extern "C" {
     BRIDGE_API void* __cdecl hostCreate(void* parent, uint32_t width, uint32_t height) {
+        g_latestFps.store(0.0, std::memory_order_relaxed);
+        g_latestFrameTimeMs.store(0.0, std::memory_order_relaxed);
+
         AllocConsole();
         FILE* fDummy;
         freopen_s(&fDummy, "CONOUT$", "w", stdout);
@@ -230,55 +239,60 @@ extern "C" {
         g_needLoad.store(true, std::memory_order_release);
     }
 
-    BRIDGE_API int __cdecl pick(float mouseX, float mouseY) {
-        std::lock_guard<std::mutex> lock(g_sceneMutex);
-        if (scene) {
-            return scene->pick(mouseX, mouseY);
-        }
-        return -1;
+    BRIDGE_API int __cdecl hostPick(float mouseX, float mouseY,
+        int* outModelIndex, int* outNodeIndex,bool* isHit)
+    {
+        storeIndexes hit = scene->pick(mouseX, mouseY);
+
+        if (!outModelIndex || !outNodeIndex) return 0;
+
+        *outModelIndex = hit.modelIndex;
+        *outNodeIndex = hit.nodeIndex;
+        *isHit = hit.selected;
+        return hit.modelIndex >= 0 ? 1 : 0;
     }
-    BRIDGE_API void __cdecl deleteModel() {
+    BRIDGE_API void __cdecl deleteModel(int modelIndex) {
         if (scene) {
-            scene->deleteModel();
+            scene->deleteModel(modelIndex);
         }
     }
-    BRIDGE_API int __cdecl hostGetNodeCount() {
+    BRIDGE_API int __cdecl hostGetNodeCount(int modelIndex) {
         if (!scene) {
             std::cout << "[Bridge] ERROR: Global 'scene' pointer is NULL!\n";
             return 0;
         }
-        if (!scene->getModel()) {
+        if (!scene->getModel(modelIndex)) {
             std::cout << "[Bridge] ERROR: scene->getModel() is NULL (Model failed to load)!\n";
             return 0;
         }
 
-        int count = static_cast<int>(scene->getModel()->getNodes().size());
+        int count = static_cast<int>(scene->getModel(modelIndex)->getNodes().size());
         std::cout << "[Bridge] hostGetNodeCount successfully returning: " << count << "\n";
         return count;
     }
-    BRIDGE_API int __cdecl hostGetNodeParent(int index) {
-        if (scene && scene->getModel()) {
-            const auto& nodes = scene->getModel()->getNodes();
+    BRIDGE_API int __cdecl hostGetNodeParent(int modelIndex,int index) {
+        if (scene && scene->getModel(modelIndex)) {
+            const auto& nodes = scene->getModel(modelIndex)->getNodes();
             if (index >= 0 && index < nodes.size()) {
                 return nodes[index].parentIndex;
             }
         }
         return -1;
     }
-    BRIDGE_API const char* __cdecl hostGetNodeName(int index) {
-        if (scene && scene->getModel()) {
-            const auto& nodes = scene->getModel()->getNodes();
+    BRIDGE_API const char* __cdecl hostGetNodeName(int modelIndex,int index) {
+        if (scene && scene->getModel(modelIndex)) {
+            const auto& nodes = scene->getModel(modelIndex)->getNodes();
             if (index >= 0 && index < nodes.size()) {
                 return nodes[index].name.c_str();
             }
         }
         return "unknown";
     }
-    BRIDGE_API int __cdecl hostGetNodePos(int index, float* x, float* y, float* z) {
-        if (!scene || !scene->getModel() || !x || !y || !z) {
+    BRIDGE_API int __cdecl hostGetNodePos(int modelIndex,int index, float* x, float* y, float* z) {
+        if (!scene || !scene->getModel(modelIndex) || !x || !y || !z) {
             return 0;
         }
-        Model* model = scene->getModel();
+        Model* model = scene->getModel(modelIndex);
         const auto& nodes = model->getNodes();
 
         if (index == -1) {
@@ -301,11 +315,11 @@ extern "C" {
 
         return 1;
     }
-    BRIDGE_API int __cdecl hostGetNodeScale(int index, float* x, float* y, float* z) {
-        if (!scene || !scene->getModel() || !x || !y || !z) {
+    BRIDGE_API int __cdecl hostGetNodeScale(int modelIndex,int index, float* x, float* y, float* z) {
+        if (!scene || !scene->getModel(modelIndex) || !x || !y || !z) {
             return 0;
         }
-        Model* model = scene->getModel();
+        Model* model = scene->getModel(modelIndex);
         const auto& nodes = model->getNodes();
 
         if (index == -1) {
@@ -328,11 +342,11 @@ extern "C" {
 
         return 1;
     }
-    BRIDGE_API int __cdecl hostGetNodeRotation(int index, float* x, float* y, float* z) {
-        if (!scene || !scene->getModel() || !x || !y || !z) {
+    BRIDGE_API int __cdecl hostGetNodeRotation(int modelIndex,int index, float* x, float* y, float* z) {
+        if (!scene || !scene->getModel(modelIndex) || !x || !y || !z) {
             return 0;
         }
-        Model* model = scene->getModel();
+        Model* model = scene->getModel(modelIndex);
         const auto& nodes = model->getNodes();
 
         if (index == -1) {
@@ -355,25 +369,29 @@ extern "C" {
 
         return 1;
     }
-    BRIDGE_API int __cdecl hostSelectNode(int index) {
-        if (!scene || !scene->getModel()) {
+    BRIDGE_API int __cdecl hostSelectNode(int modelIndex, int index) {
+        if (!scene || !scene->getModel(modelIndex)) {
             return 0;
         }
-        Model* model = scene->getModel();
+        Model* model = scene->getModel(modelIndex);
 
         model->selectNode(index);
         return 1;
-
+    }
+    BRIDGE_API int __cdecl hostSelectModel(int modelIndex) {
+        if (!scene) return 0;
+        scene->selectModel(modelIndex);
+        return 1;
     }
     BRIDGE_API bool __cdecl hostIsModelLoadInProgress() {
         return g_modelLoad.load(std::memory_order_acquire);
     }
-    BRIDGE_API void __cdecl hostSetNodePos(int index, float x, float y, float z) {
-        if (!scene || !scene->getModel()) {
+    BRIDGE_API void __cdecl hostSetNodePos(int modelIndex,int index, float x, float y, float z) {
+        if (!scene || !scene->getModel(modelIndex)) {
             return;
         }
 
-        Model* model = scene->getModel();
+        Model* model = scene->getModel(modelIndex);
         if (index == -1) {
             model->position.x = x;
             model->position.y = y;
@@ -384,13 +402,14 @@ extern "C" {
         }
     }
 
-    BRIDGE_API void __cdecl hostSetNodeRotation(int index, float x, float y, float z) {
-        if (!scene || !scene->getModel()) {
+    BRIDGE_API void __cdecl hostSetNodeRotation(int modelIndex, int index, float x, float y, float z) {
+        if (!scene || !scene->getModel(modelIndex)) {
             return;
         }
 
-        Model* model = scene->getModel();
+        Model* model = scene->getModel(modelIndex);
         if (index == -1) {
+           
             model->rotation.x = x;
             model->rotation.y = y;
             model->rotation.z = z;
@@ -400,12 +419,12 @@ extern "C" {
         }
     }
 
-    BRIDGE_API void __cdecl hostSetNodeScale(int index, float x, float y, float z) {
-        if (!scene || !scene->getModel()) {
+    BRIDGE_API void __cdecl hostSetNodeScale(int modelIndex,int index, float x, float y, float z) {
+        if (!scene || !scene->getModel(modelIndex)) {
             return;
         }
 
-        Model* model = scene->getModel();
+        Model* model = scene->getModel(modelIndex);
         if (index == -1) {
             model->scale.x = x;
             model->scale.y = y;
@@ -415,6 +434,30 @@ extern "C" {
             model->setNodeScale(index, x, y, z);
         }
     }
+    BRIDGE_API int __cdecl getModelIndex() {
+        const int index = modelIndex.exchange(-1, std::memory_order_relaxed);
+        return index;
+    }
+    BRIDGE_API void __cdecl hostClearSelection() {
+        if (!scene)
+            return;
+        scene->clearSelection();
+    }
+    BRIDGE_API void __cdecl hostEnableWireframe(int index) {
+        if (!scene)
+            return;
+        scene->getModel(index)->enableWireframe = true;
+    }
+    BRIDGE_API void __cdecl hostDisableWireframe(int index) {
+        if (!scene)
+            return;
+        scene->getModel(index)->enableWireframe = false;
+    }
+    BRIDGE_API void __cdecl hostGetRenderStats(double* outFps, double* outFrameTimeMs) {
+        if (!outFps || !outFrameTimeMs)
+            return;
 
-
+        *outFps = g_latestFps.load(std::memory_order_relaxed);
+        *outFrameTimeMs = g_latestFrameTimeMs.load(std::memory_order_relaxed);
+    }
 }

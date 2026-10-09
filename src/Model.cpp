@@ -66,6 +66,29 @@ void Model::loadModel(std::string path) {
 
     Model::processNode(scene->mRootNode, scene,-1);
 
+    // Build bounds in model space after applying each node's imported transform.
+    std::vector<glm::mat4> nodeWorld(m_nodes.size(), glm::mat4(1.0f));
+    for (size_t i = 0; i < m_nodes.size(); ++i) {
+        const modelNode& node = m_nodes[i];
+
+        glm::mat4 local(1.0f);
+        local = glm::translate(local, node.position);
+        local = glm::rotate(local, glm::radians(node.rotation.x), { 1.0f, 0.0f, 0.0f });
+        local = glm::rotate(local, glm::radians(node.rotation.y), { 0.0f, 1.0f, 0.0f });
+        local = glm::rotate(local, glm::radians(node.rotation.z), { 0.0f, 0.0f, 1.0f });
+        local = glm::scale(local, node.scale);
+
+        nodeWorld[i] = node.parentIndex >= 0
+            ? nodeWorld[node.parentIndex] * local
+            : local;
+
+        for (int meshIndex : node.meshIndices) {
+            if (meshIndex >= 0 && static_cast<size_t>(meshIndex) < m_meshes.size()) {
+                m_AABB.expand(transformAABB(m_meshes[meshIndex].localAABB, nodeWorld[i]));
+            }
+        }
+    }
+
     float targetSize = 5.0f;
     float maxDim = m_AABB.getMaxExtent();
     float scaleFactor = (maxDim > 0.0001f) ? (targetSize / maxDim) : 1.0f;
@@ -79,15 +102,16 @@ void Model::loadModel(std::string path) {
 void Model::draw(Shader& shader) {
     std::vector<glm::mat4> nodeWorld(m_nodes.size(), glm::mat4(1.0f));
     const glm::mat4 modelWorld = getModelMatrix();
+    const bool updateBounds = isChanged;
 
-    for (size_t i = 0;i < m_nodes.size();i++) {
+    for (size_t i = 0; i < m_nodes.size(); ++i) {
         const modelNode& node = m_nodes[i];
 
         glm::mat4 local(1.0f);
         local = glm::translate(local, node.position);
-        local = glm::rotate(local, glm::radians(node.rotation.x), { 1.0f,0.0f,0.0f });
-        local = glm::rotate(local, glm::radians(node.rotation.y), { 0.0f,1.0f,0.0f });
-        local = glm::rotate(local, glm::radians(node.rotation.z), { 0.0f,0.0f,1.0f });
+        local = glm::rotate(local, glm::radians(node.rotation.x), { 1.0f, 0.0f, 0.0f });
+        local = glm::rotate(local, glm::radians(node.rotation.y), { 0.0f, 1.0f, 0.0f });
+        local = glm::rotate(local, glm::radians(node.rotation.z), { 0.0f, 0.0f, 1.0f });
         local = glm::scale(local, node.scale);
 
         if (node.parentIndex >= 0) {
@@ -98,12 +122,12 @@ void Model::draw(Shader& shader) {
         }
 
         for (int meshIndex : node.meshIndices) {
-            m_meshes[meshIndex].modelAABB =
-                transformAABB(m_meshes[meshIndex].localAABB, nodeWorld[i]);
-        }
-
-        for (int meshIndex : node.meshIndices) {
             subMesh& submesh = m_meshes[meshIndex];
+
+            if (updateBounds) {
+                submesh.modelAABB =
+                    transformAABB(submesh.localAABB, nodeWorld[i]);
+            }
 
             shader.setUniformModel(modelWorld * nodeWorld[i]);
             shader.setInt("u_isSelected", submesh.isSelected ? 1 : 0);
@@ -112,6 +136,10 @@ void Model::draw(Shader& shader) {
                 submesh.geometry.Draw(shader, *submesh.material);
             }
         }
+    }
+
+    if (updateBounds) {
+        isChanged = false;
     }
 }
 
@@ -197,7 +225,6 @@ subMesh Model::processMesh(aiMesh* aiMesh, const aiScene* scene) {
     AABB submeshAABB;
 
     for (const auto& v : vertices) {
-        m_AABB.expand(v.position);
         submeshAABB.expand(v.position);
     }
 
@@ -321,6 +348,7 @@ void Model::selectNode(int index)
     }
 }
 
+
 int Model::pickSubMeshes(const ray& localRay, float& outDist) {
     float closestDist = (std::numeric_limits<float>::max)();
     int hitMeshIndex = -1;
@@ -340,7 +368,7 @@ int Model::pickSubMeshes(const ray& localRay, float& outDist) {
             local, glm::radians(node.rotation.y), { 0.0f, 1.0f, 0.0f });
         local = glm::rotate(
             local, glm::radians(node.rotation.z), { 0.0f, 0.0f, 1.0f });
-
+        local = glm::scale(local, node.scale);
         nodeWorld[nodeIndex] = node.parentIndex >= 0
             ? nodeWorld[node.parentIndex] * local
             : local;
@@ -358,7 +386,7 @@ int Model::pickSubMeshes(const ray& localRay, float& outDist) {
 
     for (size_t meshIndex = 0; meshIndex < m_meshes.size(); ++meshIndex) {
         subMesh& sm = m_meshes[meshIndex];
-        sm.isSelected = false;
+
 
         const glm::mat4& nodeMatrix = meshNodeWorld[meshIndex];
 
@@ -418,7 +446,6 @@ int Model::pickSubMeshes(const ray& localRay, float& outDist) {
         << " | Total Triangles Hit: " << triHits << "\n";
 
     if (hitMeshIndex >= 0) {
-        m_meshes[hitMeshIndex].isSelected = true;
         outDist = closestDist;
     }
 
@@ -447,4 +474,15 @@ AABB Model::transformAABB(const AABB& local, const glm::mat4& nodeWorld)
     }
 
     return result;
+}
+
+void Model::selectModel() {
+    for (auto& sm : m_meshes) {
+        sm.isSelected = true;
+    }
+}
+void Model::clearSelection() {
+    for (auto& sm : m_meshes) {
+        sm.isSelected = false;
+    }
 }

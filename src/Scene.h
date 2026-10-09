@@ -13,7 +13,11 @@
 #include "Lights.h"
 #include "Ray.h"
 
-
+struct storeIndexes {
+	bool selected = false;
+	int modelIndex = -1;
+	int nodeIndex = -1;
+};
 class Scene {
 public:
 	Scene(uint32_t width,uint32_t height);
@@ -22,16 +26,29 @@ public:
 	void resize(uint32_t width,uint32_t height);
 	void update(float deltatime);
 	void render();
-
 	void onKeyboardInput(int direction, float deltatime);
 	void onMouseMove(float xOffset, float yOffset);
 	void onMouseScroll(float offset);
-	void loadModel(const std::string& path);
-	int pick(float mouseX, float mouseY);
-	void deleteModel() { m_model = nullptr; };
+	int loadModel(const std::string& path);
+	storeIndexes pick(float mouseX, float mouseY);
+	void deleteModel(int modelIndex) { m_model[modelIndex] = nullptr; };
 	int updateMeshAABB(int meshIndex);
-	ray toModelLocalRay(ray worldRay);
-	Model* getModel() { return m_model.get(); };
+	void selectModel(int modelIndex);
+	ray toModelLocalRay(ray worldRay,const glm::mat4& modelMat);
+	Model* getModel(int modelIndex) {
+		if (modelIndex < 0 ||
+			static_cast<size_t>(modelIndex) >= m_model.size()) {
+			return nullptr;
+		}
+
+		return m_model[modelIndex].get();
+	};
+	void clearSelection() {
+		for (auto& m : m_model) {
+			if (m == nullptr) { continue; }
+			m->deselectMesh();
+		}
+	}
 private:
 	uint32_t m_width;
 	uint32_t m_height;
@@ -39,8 +56,8 @@ private:
 
 	std::unique_ptr<Camera> m_cam;
 	std::unique_ptr<Shader> m_shader;
-	std::unique_ptr<Model> m_model;
-	
+	std::vector<std::unique_ptr<Model>> m_model;
+	int pickedModel;
 	lightManager m_lightMan;
 };
 
