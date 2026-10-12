@@ -1,8 +1,21 @@
 * text=auto
 
+# Keep first-party working files consistent on Windows. Git stores text as LF.
+/.gitattributes text eol=crlf
+/.editorconfig text eol=crlf
+/.gitignore text eol=crlf
+/CMakeLists.txt text eol=crlf
+/CMakePresets.json text eol=crlf
+/README.md text eol=crlf
+/vcpkg.json text eol=crlf
+/*.sln text eol=crlf
+/*.vcxproj* text eol=crlf
+/cmake/** text eol=crlf
+/editor/** text eol=crlf
+/src/** text eol=crlf
+
 dependencies/** linguist-vendored
-src/glad.c linguist-vendored
+src/render/glad.c linguist-vendored
 *.h linguist-language=C++
-src/*.h linguist-language=C++
 *.vert linguist-language=GLSL
 *.frag linguist-language=GLSL
