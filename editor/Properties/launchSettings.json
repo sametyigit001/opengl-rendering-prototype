@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "rendererUI": {
+      "commandName": "Project",
+      "nativeDebugging": true
+    }
+  }
+}

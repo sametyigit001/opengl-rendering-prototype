@@ -2,6 +2,7 @@
 #define MODEL_H
 
 #include <string>
+#include <cstdint>
 #include <unordered_map>
 #include <filesystem>
 #include <assimp/Importer.hpp>
@@ -10,12 +11,22 @@
 #include "Mesh.h"
 #include "AABB.h"
 
+struct triangleBvhNode {
+	AABB bounds;
+	std::uint32_t first = 0;  // Leaf: first triangle-order entry; internal: left child node.
+	std::uint32_t second = 0; // Internal: right child node.
+	std::uint16_t triangleCount = 0; // Zero for internal nodes.
+};
+
 struct subMesh {
 	mesh geometry;
 	std::shared_ptr<Material> material;
 	AABB localAABB;
 	bool isSelected = false;
 	AABB modelAABB;
+	std::vector<std::uint32_t> triangleOrder;
+	std::vector<triangleBvhNode> triangleBvh;
+	std::uint32_t triangleBvhRoot = 0;
 };
 
 struct modelNode {
@@ -38,6 +49,7 @@ public:
 	Model(const std::string& path);
 	void loadModel(std::string path);
 	int processNode(aiNode* node,const aiScene* scene, int parentIndex);
+	void buildTriangleBvh(subMesh& submesh);
 	void draw(Shader& shader);
 	void selectNode(int index);
 	int pickSubMeshes(const ray& localray, float& outdist);
@@ -49,7 +61,7 @@ public:
 	glm::vec3 position{ 0.0f };
 	glm::vec3 rotation{ 0.0f };
 	glm::vec3 scale{ 1.0f };
-	bool isChanged = false;
+	bool isChanged = true;
 
 	glm::mat4 getModelMatrix() const {
 		glm::mat4 model = glm::mat4(1.0f);
@@ -98,13 +110,19 @@ public:
 	};
 private:
 	AABB m_AABB;
+	AABB m_pickAABB;
 	glm::mat4 normMat{1.0f};
 	std::vector<subMesh> m_meshes;
+	std::vector<glm::mat4> m_nodeWorld;
+	std::vector<glm::mat4> m_nodeWorldInverse;
+	std::vector<unsigned char> m_nodeWorldInverseValid;
+	std::vector<int> m_meshNodeIndex;
 	std::string directory;
 	std::shared_ptr<Texture> loadMaterialTexture(aiMaterial* mat, aiTextureType type,const aiScene* scene);
 	std::unordered_map<std::string, std::shared_ptr<Texture>> m_loadedTextures;
 	std::vector<modelNode> m_nodes;
 	int m_index;
+	void updateNodeTransformCache();
 };
 
 #endif // !MODEL_H

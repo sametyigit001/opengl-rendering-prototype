@@ -5,7 +5,7 @@ VisualStudioVersion = 17.14.36811.4
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "refactored_engine_code", "refactored_engine_code.vcxproj", "{751F278B-DA7E-43CE-A037-D74B188D4A4F}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "rendererUI", "..\rendererUI\rendererUI.csproj", "{78866F45-7623-493B-B704-B28A4CA3CD58}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "rendererUI", "editor\rendererUI.csproj", "{78866F45-7623-493B-B704-B28A4CA3CD58}"
 	ProjectSection(ProjectDependencies) = postProject
 		{751F278B-DA7E-43CE-A037-D74B188D4A4F} = {751F278B-DA7E-43CE-A037-D74B188D4A4F}
 	EndProjectSection

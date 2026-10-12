@@ -240,7 +240,7 @@
       <AdditionalDependencies>glfw3.lib;opengl32.lib;assimp-vc143-mt.lib;zlibstatic.lib;gdi32.lib;user32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
-      <Command>xcopy /Y /I "$(TargetPath)" "C:\Users\Samet\source\repos\rendererUI\bin\UI-debug\net8.0-windows\"</Command>
+      <Command>xcopy /Y /I "$(TargetPath)" "$(SolutionDir)editor\bin\Debug\net8.0-windows\"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='UI-debug|x64'">
@@ -261,7 +261,7 @@
       <AdditionalDependencies>glfw3.lib;opengl32.lib;assimp-vc143-mt.lib;zlibstatic.lib;gdi32.lib;user32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
-      <Command>xcopy /Y /I "$(TargetPath)" "C:\Users\Samet\source\repos\rendererUI\bin\UI-debug\net8.0-windows\"</Command>
+      <Command>xcopy /Y /I "$(TargetPath)" "$(SolutionDir)editor\bin\UI-debug\net8.0-windows\"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -286,7 +286,8 @@
       <AdditionalDependencies>glfw3.lib;opengl32.lib;assimp-vc143-mt.lib;zlibstatic.lib;gdi32.lib;user32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
-      <Command>xcopy /Y /I "$(TargetPath)" "C:\Users\Samet\source\repos\rendererUI\bin\x64\UI-debug\net8.0-windows\"</Command>
+      <Command>xcopy /Y /I "$(TargetPath)" "$(SolutionDir)editor\bin\Release\net8.0-windows\"
+xcopy /Y /I "$(TargetPath)" "$(SolutionDir)editor\bin\x64\UI-debug\net8.0-windows\"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='release2|x64'">
@@ -310,7 +311,7 @@
       <AdditionalDependencies>glfw3.lib;opengl32.lib;assimp-vc143-mt.lib;zlibstatic.lib;gdi32.lib;user32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
-      <Command>xcopy /Y /I "$(TargetPath)" "C:\Users\Samet\source\repos\rendererUI\bin\UI-debug\net8.0-windows\"</Command>
+      <Command>xcopy /Y /I "$(TargetPath)" "$(SolutionDir)editor\bin\Release\net8.0-windows\"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

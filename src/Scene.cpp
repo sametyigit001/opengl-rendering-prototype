@@ -38,12 +38,14 @@ void Scene::render() {
 	glClearColor(0.12f, 0.12f, 0.15f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glEnable(GL_DEPTH_TEST);
-	for (const auto& m : m_model)
-	{
-		if (m != nullptr) {
-		}
-	}
 	if (!m_shader) return;
+
+	// These values are shared by every model in this frame.
+	m_shader->use();
+	m_shader->setUniformView(m_cam->getViewMatrix());
+	m_shader->setUniformProjection(m_cam->getProjectionMatrix());
+	m_lightMan.applyLights(*m_shader);
+
 	for (const auto& m : m_model) {
 		if (!m) continue;
 		else {
@@ -53,15 +55,6 @@ void Scene::render() {
 			else {
 				glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 			}
-			m_shader->use();
-
-			m_shader->setUniformView(m_cam->getViewMatrix());
-			m_shader->setUniformProjection(m_cam->getProjectionMatrix());
-			m_shader->setUniformModel(m->getModelMatrix());
-
-
-			m_lightMan.applyLights(*m_shader);
-
 			m->draw(*m_shader);
 		}
 	}

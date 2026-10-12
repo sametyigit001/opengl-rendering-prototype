@@ -196,11 +196,14 @@ extern "C" {
             }
         }
 
-        // Clean up GL resources safely on calling thread
-        if (hdc && gl) {
-            wglMakeCurrent(hdc, gl);
-            scene.reset();
-            wglMakeCurrent(nullptr, nullptr);
+        // Wait for any outstanding UI-thread pick before destroying the scene.
+        {
+            std::lock_guard<std::mutex> lock(g_sceneMutex);
+            if (hdc && gl) {
+                wglMakeCurrent(hdc, gl);
+                scene.reset();
+                wglMakeCurrent(nullptr, nullptr);
+            }
         }
 
         if (gl) {
@@ -242,9 +245,18 @@ extern "C" {
     BRIDGE_API int __cdecl hostPick(float mouseX, float mouseY,
         int* outModelIndex, int* outNodeIndex,bool* isHit)
     {
-        storeIndexes hit = scene->pick(mouseX, mouseY);
+        if (!outModelIndex || !outNodeIndex || !isHit)
+            return 0;
 
-        if (!outModelIndex || !outNodeIndex) return 0;
+        *outModelIndex = -1;
+        *outNodeIndex = -1;
+        *isHit = false;
+
+        std::lock_guard<std::mutex> lock(g_sceneMutex);
+        if (!scene)
+            return 0;
+
+        storeIndexes hit = scene->pick(mouseX, mouseY);
 
         *outModelIndex = hit.modelIndex;
         *outNodeIndex = hit.nodeIndex;
@@ -252,11 +264,13 @@ extern "C" {
         return hit.modelIndex >= 0 ? 1 : 0;
     }
     BRIDGE_API void __cdecl deleteModel(int modelIndex) {
+        std::lock_guard<std::mutex> lock(g_sceneMutex);
         if (scene) {
             scene->deleteModel(modelIndex);
         }
     }
     BRIDGE_API int __cdecl hostGetNodeCount(int modelIndex) {
+        std::lock_guard<std::mutex> lock(g_sceneMutex);
         if (!scene) {
             std::cout << "[Bridge] ERROR: Global 'scene' pointer is NULL!\n";
             return 0;
@@ -271,6 +285,7 @@ extern "C" {
         return count;
     }
     BRIDGE_API int __cdecl hostGetNodeParent(int modelIndex,int index) {
+        std::lock_guard<std::mutex> lock(g_sceneMutex);
         if (scene && scene->getModel(modelIndex)) {
             const auto& nodes = scene->getModel(modelIndex)->getNodes();
             if (index >= 0 && index < nodes.size()) {
@@ -280,6 +295,7 @@ extern "C" {
         return -1;
     }
     BRIDGE_API const char* __cdecl hostGetNodeName(int modelIndex,int index) {
+        std::lock_guard<std::mutex> lock(g_sceneMutex);
         if (scene && scene->getModel(modelIndex)) {
             const auto& nodes = scene->getModel(modelIndex)->getNodes();
             if (index >= 0 && index < nodes.size()) {
@@ -289,6 +305,7 @@ extern "C" {
         return "unknown";
     }
     BRIDGE_API int __cdecl hostGetNodePos(int modelIndex,int index, float* x, float* y, float* z) {
+        std::lock_guard<std::mutex> lock(g_sceneMutex);
         if (!scene || !scene->getModel(modelIndex) || !x || !y || !z) {
             return 0;
         }
@@ -316,6 +333,7 @@ extern "C" {
         return 1;
     }
     BRIDGE_API int __cdecl hostGetNodeScale(int modelIndex,int index, float* x, float* y, float* z) {
+        std::lock_guard<std::mutex> lock(g_sceneMutex);
         if (!scene || !scene->getModel(modelIndex) || !x || !y || !z) {
             return 0;
         }
@@ -343,6 +361,7 @@ extern "C" {
         return 1;
     }
     BRIDGE_API int __cdecl hostGetNodeRotation(int modelIndex,int index, float* x, float* y, float* z) {
+        std::lock_guard<std::mutex> lock(g_sceneMutex);
         if (!scene || !scene->getModel(modelIndex) || !x || !y || !z) {
             return 0;
         }
@@ -370,6 +389,7 @@ extern "C" {
         return 1;
     }
     BRIDGE_API int __cdecl hostSelectNode(int modelIndex, int index) {
+        std::lock_guard<std::mutex> lock(g_sceneMutex);
         if (!scene || !scene->getModel(modelIndex)) {
             return 0;
         }
@@ -379,6 +399,7 @@ extern "C" {
         return 1;
     }
     BRIDGE_API int __cdecl hostSelectModel(int modelIndex) {
+        std::lock_guard<std::mutex> lock(g_sceneMutex);
         if (!scene) return 0;
         scene->selectModel(modelIndex);
         return 1;
@@ -387,6 +408,7 @@ extern "C" {
         return g_modelLoad.load(std::memory_order_acquire);
     }
     BRIDGE_API void __cdecl hostSetNodePos(int modelIndex,int index, float x, float y, float z) {
+        std::lock_guard<std::mutex> lock(g_sceneMutex);
         if (!scene || !scene->getModel(modelIndex)) {
             return;
         }
@@ -403,6 +425,7 @@ extern "C" {
     }
 
     BRIDGE_API void __cdecl hostSetNodeRotation(int modelIndex, int index, float x, float y, float z) {
+        std::lock_guard<std::mutex> lock(g_sceneMutex);
         if (!scene || !scene->getModel(modelIndex)) {
             return;
         }
@@ -420,6 +443,7 @@ extern "C" {
     }
 
     BRIDGE_API void __cdecl hostSetNodeScale(int modelIndex,int index, float x, float y, float z) {
+        std::lock_guard<std::mutex> lock(g_sceneMutex);
         if (!scene || !scene->getModel(modelIndex)) {
             return;
         }
@@ -439,16 +463,19 @@ extern "C" {
         return index;
     }
     BRIDGE_API void __cdecl hostClearSelection() {
+        std::lock_guard<std::mutex> lock(g_sceneMutex);
         if (!scene)
             return;
         scene->clearSelection();
     }
     BRIDGE_API void __cdecl hostEnableWireframe(int index) {
+        std::lock_guard<std::mutex> lock(g_sceneMutex);
         if (!scene)
             return;
         scene->getModel(index)->enableWireframe = true;
     }
     BRIDGE_API void __cdecl hostDisableWireframe(int index) {
+        std::lock_guard<std::mutex> lock(g_sceneMutex);
         if (!scene)
             return;
         scene->getModel(index)->enableWireframe = false;

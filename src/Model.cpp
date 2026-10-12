@@ -5,6 +5,9 @@
 #include <iostream>
 #include <filesystem>
 #include <vector>
+#include <cmath>
+#include <algorithm>
+#include <cstdint>
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include "Windows.h"
@@ -66,27 +69,11 @@ void Model::loadModel(std::string path) {
 
     Model::processNode(scene->mRootNode, scene,-1);
 
-    // Build bounds in model space after applying each node's imported transform.
-    std::vector<glm::mat4> nodeWorld(m_nodes.size(), glm::mat4(1.0f));
-    for (size_t i = 0; i < m_nodes.size(); ++i) {
-        const modelNode& node = m_nodes[i];
-
-        glm::mat4 local(1.0f);
-        local = glm::translate(local, node.position);
-        local = glm::rotate(local, glm::radians(node.rotation.x), { 1.0f, 0.0f, 0.0f });
-        local = glm::rotate(local, glm::radians(node.rotation.y), { 0.0f, 1.0f, 0.0f });
-        local = glm::rotate(local, glm::radians(node.rotation.z), { 0.0f, 0.0f, 1.0f });
-        local = glm::scale(local, node.scale);
-
-        nodeWorld[i] = node.parentIndex >= 0
-            ? nodeWorld[node.parentIndex] * local
-            : local;
-
-        for (int meshIndex : node.meshIndices) {
-            if (meshIndex >= 0 && static_cast<size_t>(meshIndex) < m_meshes.size()) {
-                m_AABB.expand(transformAABB(m_meshes[meshIndex].localAABB, nodeWorld[i]));
-            }
-        }
+    // Build node transforms and mesh bounds once. Node setters invalidate this cache.
+    isChanged = true;
+    updateNodeTransformCache();
+    for (const subMesh& mesh : m_meshes) {
+        m_AABB.expand(mesh.modelAABB);
     }
 
     float targetSize = 5.0f;
@@ -99,10 +86,22 @@ void Model::loadModel(std::string path) {
     normMat = glm::translate(normMat, -center);
 }
 
-void Model::draw(Shader& shader) {
-    std::vector<glm::mat4> nodeWorld(m_nodes.size(), glm::mat4(1.0f));
-    const glm::mat4 modelWorld = getModelMatrix();
-    const bool updateBounds = isChanged;
+void Model::updateNodeTransformCache() {
+    if (!isChanged &&
+        m_nodeWorld.size() == m_nodes.size() &&
+        m_nodeWorldInverse.size() == m_nodes.size() &&
+        m_nodeWorldInverseValid.size() == m_nodes.size() &&
+        m_meshNodeIndex.size() == m_meshes.size()) {
+        return;
+    }
+
+    m_nodeWorld.assign(m_nodes.size(), glm::mat4(1.0f));
+    m_nodeWorldInverse.assign(m_nodes.size(), glm::mat4(1.0f));
+    m_nodeWorldInverseValid.assign(m_nodes.size(), 0);
+    m_meshNodeIndex.assign(m_meshes.size(), -1);
+    for (subMesh& mesh : m_meshes) {
+        mesh.modelAABB = transformAABB(mesh.localAABB, glm::mat4(1.0f));
+    }
 
     for (size_t i = 0; i < m_nodes.size(); ++i) {
         const modelNode& node = m_nodes[i];
@@ -114,32 +113,52 @@ void Model::draw(Shader& shader) {
         local = glm::rotate(local, glm::radians(node.rotation.z), { 0.0f, 0.0f, 1.0f });
         local = glm::scale(local, node.scale);
 
-        if (node.parentIndex >= 0) {
-            nodeWorld[i] = nodeWorld[node.parentIndex] * local;
-        }
-        else {
-            nodeWorld[i] = local;
+        const bool hasValidParent = node.parentIndex >= 0 &&
+            static_cast<size_t>(node.parentIndex) < i;
+        m_nodeWorld[i] = hasValidParent
+            ? m_nodeWorld[node.parentIndex] * local
+            : local;
+
+        const float determinant = glm::determinant(m_nodeWorld[i]);
+        if (std::isfinite(determinant) && std::abs(determinant) > 1e-8f) {
+            m_nodeWorldInverse[i] = glm::inverse(m_nodeWorld[i]);
+            m_nodeWorldInverseValid[i] = 1;
         }
 
         for (int meshIndex : node.meshIndices) {
+            if (meshIndex < 0 || static_cast<size_t>(meshIndex) >= m_meshes.size())
+                continue;
+
+            m_meshNodeIndex[meshIndex] = static_cast<int>(i);
+            m_meshes[meshIndex].modelAABB =
+                transformAABB(m_meshes[meshIndex].localAABB, m_nodeWorld[i]);
+        }
+    }
+
+    m_pickAABB.reset();
+    for (const subMesh& mesh : m_meshes)
+        m_pickAABB.expand(mesh.modelAABB);
+
+    isChanged = false;
+}
+
+void Model::draw(Shader& shader) {
+    updateNodeTransformCache();
+    const glm::mat4 modelWorld = getModelMatrix();
+
+    for (size_t i = 0; i < m_nodes.size(); ++i) {
+        const modelNode& node = m_nodes[i];
+        const glm::mat4& nodeWorld = m_nodeWorld[i];
+
+        for (int meshIndex : node.meshIndices) {
             subMesh& submesh = m_meshes[meshIndex];
-
-            if (updateBounds) {
-                submesh.modelAABB =
-                    transformAABB(submesh.localAABB, nodeWorld[i]);
-            }
-
-            shader.setUniformModel(modelWorld * nodeWorld[i]);
+            shader.setUniformModel(modelWorld * nodeWorld);
             shader.setInt("u_isSelected", submesh.isSelected ? 1 : 0);
 
             if (submesh.material) {
                 submesh.geometry.Draw(shader, *submesh.material);
             }
         }
-    }
-
-    if (updateBounds) {
-        isChanged = false;
     }
 }
 
@@ -255,8 +274,129 @@ subMesh Model::processMesh(aiMesh* aiMesh, const aiScene* scene) {
 
         mat = std::make_shared<Material>(diffuseMap, specularMap,opacityMap, shininess, specularColor);
     }
-    return subMesh{ mesh(std::move(vertices), std::move(indices)), mat,submeshAABB,false };
+    subMesh processed{
+        mesh(std::move(vertices), std::move(indices)),
+        mat,
+        submeshAABB,
+        false
+    };
+    buildTriangleBvh(processed);
+    return processed;
 }
+
+void Model::buildTriangleBvh(subMesh& submesh) {
+    const auto& vertices = submesh.geometry.getVertices();
+    const auto& indices = submesh.geometry.getIndices();
+    const size_t triangleCount = indices.empty()
+        ? vertices.size() / 3
+        : indices.size() / 3;
+
+    constexpr std::uint32_t leafSize = 32;
+    if (triangleCount <= leafSize ||
+        triangleCount >= (std::numeric_limits<std::uint32_t>::max)()) {
+        return;
+    }
+
+    auto spreadBits = [](std::uint32_t value) {
+        value &= 0x000003ffu;
+        value = (value | (value << 16)) & 0x030000ffu;
+        value = (value | (value << 8)) & 0x0300f00fu;
+        value = (value | (value << 4)) & 0x030c30c3u;
+        value = (value | (value << 2)) & 0x09249249u;
+        return value;
+    };
+    auto quantize = [](float value, float minimum, float extent) {
+        if (extent <= 1e-8f)
+            return 0u;
+        const float normalized = std::clamp((value - minimum) / extent, 0.0f, 0.999999f);
+        return static_cast<std::uint32_t>(normalized * 1024.0f);
+    };
+
+    const glm::vec3 extent = submesh.localAABB.getExtent();
+    submesh.triangleOrder.resize(triangleCount);
+    std::vector<std::uint32_t> mortonCodes(triangleCount);
+
+    for (std::uint32_t triangle = 0; triangle < triangleCount; ++triangle) {
+        const size_t offset = static_cast<size_t>(triangle) * 3;
+        const std::uint32_t i0 = indices.empty() ? static_cast<std::uint32_t>(offset) : indices[offset];
+        const std::uint32_t i1 = indices.empty() ? static_cast<std::uint32_t>(offset + 1) : indices[offset + 1];
+        const std::uint32_t i2 = indices.empty() ? static_cast<std::uint32_t>(offset + 2) : indices[offset + 2];
+        const glm::vec3 centroid =
+            (vertices[i0].position + vertices[i1].position + vertices[i2].position) / 3.0f;
+
+        const std::uint32_t x = quantize(centroid.x, submesh.localAABB.min.x, extent.x);
+        const std::uint32_t y = quantize(centroid.y, submesh.localAABB.min.y, extent.y);
+        const std::uint32_t z = quantize(centroid.z, submesh.localAABB.min.z, extent.z);
+        mortonCodes[triangle] =
+            spreadBits(x) | (spreadBits(y) << 1) | (spreadBits(z) << 2);
+        submesh.triangleOrder[triangle] = triangle;
+    }
+
+    std::sort(submesh.triangleOrder.begin(), submesh.triangleOrder.end(),
+        [&mortonCodes](std::uint32_t left, std::uint32_t right) {
+            return mortonCodes[left] == mortonCodes[right]
+                ? left < right
+                : mortonCodes[left] < mortonCodes[right];
+        });
+    std::vector<std::uint32_t>().swap(mortonCodes);
+
+    std::vector<std::uint32_t> currentLevel;
+    currentLevel.reserve((triangleCount + leafSize - 1) / leafSize);
+    for (std::uint32_t first = 0; first < triangleCount; first += leafSize) {
+        triangleBvhNode leaf;
+        leaf.first = first;
+        leaf.triangleCount = static_cast<std::uint16_t>(
+            std::min<std::size_t>(leafSize, triangleCount - first));
+
+        const std::uint32_t end = first + leaf.triangleCount;
+        for (std::uint32_t orderIndex = first; orderIndex < end; ++orderIndex) {
+            const size_t triangleOffset =
+                static_cast<size_t>(submesh.triangleOrder[orderIndex]) * 3;
+            const std::uint32_t i0 = indices.empty()
+                ? static_cast<std::uint32_t>(triangleOffset)
+                : indices[triangleOffset];
+            const std::uint32_t i1 = indices.empty()
+                ? static_cast<std::uint32_t>(triangleOffset + 1)
+                : indices[triangleOffset + 1];
+            const std::uint32_t i2 = indices.empty()
+                ? static_cast<std::uint32_t>(triangleOffset + 2)
+                : indices[triangleOffset + 2];
+            leaf.bounds.expand(vertices[i0].position);
+            leaf.bounds.expand(vertices[i1].position);
+            leaf.bounds.expand(vertices[i2].position);
+        }
+        leaf.bounds.min -= glm::vec3(0.005f);
+        leaf.bounds.max += glm::vec3(0.005f);
+
+        currentLevel.push_back(static_cast<std::uint32_t>(submesh.triangleBvh.size()));
+        submesh.triangleBvh.push_back(leaf);
+    }
+
+    while (currentLevel.size() > 1) {
+        std::vector<std::uint32_t> nextLevel;
+        nextLevel.reserve((currentLevel.size() + 1) / 2);
+
+        for (size_t i = 0; i < currentLevel.size(); i += 2) {
+            if (i + 1 == currentLevel.size()) {
+                nextLevel.push_back(currentLevel[i]);
+                continue;
+            }
+
+            triangleBvhNode parent;
+            parent.first = currentLevel[i];
+            parent.second = currentLevel[i + 1];
+            parent.bounds.expand(submesh.triangleBvh[parent.first].bounds);
+            parent.bounds.expand(submesh.triangleBvh[parent.second].bounds);
+
+            nextLevel.push_back(static_cast<std::uint32_t>(submesh.triangleBvh.size()));
+            submesh.triangleBvh.push_back(parent);
+        }
+        currentLevel.swap(nextLevel);
+    }
+
+    submesh.triangleBvhRoot = currentLevel.front();
+}
+
 std::shared_ptr<Texture> Model::loadMaterialTexture(aiMaterial* mat, aiTextureType type, const aiScene* scene) {
     if (mat->GetTextureCount(type) == 0) {
         if (type == aiTextureType_DIFFUSE && mat->GetTextureCount(aiTextureType_BASE_COLOR) > 0) {
@@ -350,95 +490,149 @@ void Model::selectNode(int index)
 
 
 int Model::pickSubMeshes(const ray& localRay, float& outDist) {
+    updateNodeTransformCache();
+
+    float modelEntryDist = 0.0f;
+    if (!m_pickAABB.intersects(localRay, modelEntryDist))
+        return -1;
+
     float closestDist = (std::numeric_limits<float>::max)();
     int hitMeshIndex = -1;
-
-    // Build the accumulated node transform for each mesh.
-    std::vector<glm::mat4> nodeWorld(m_nodes.size(), glm::mat4(1.0f));
-    std::vector<glm::mat4> meshNodeWorld(m_meshes.size(), glm::mat4(1.0f));
-
-    for (size_t nodeIndex = 0; nodeIndex < m_nodes.size(); ++nodeIndex) {
-        const modelNode& node = m_nodes[nodeIndex];
-
-        glm::mat4 local(1.0f);
-        local = glm::translate(local, node.position);
-        local = glm::rotate(
-            local, glm::radians(node.rotation.x), { 1.0f, 0.0f, 0.0f });
-        local = glm::rotate(
-            local, glm::radians(node.rotation.y), { 0.0f, 1.0f, 0.0f });
-        local = glm::rotate(
-            local, glm::radians(node.rotation.z), { 0.0f, 0.0f, 1.0f });
-        local = glm::scale(local, node.scale);
-        nodeWorld[nodeIndex] = node.parentIndex >= 0
-            ? nodeWorld[node.parentIndex] * local
-            : local;
-
-        for (int meshIndex : node.meshIndices) {
-            if (meshIndex >= 0 &&
-                static_cast<size_t>(meshIndex) < meshNodeWorld.size()) {
-                meshNodeWorld[meshIndex] = nodeWorld[nodeIndex];
-            }
-        }
-    }
 
     int submeshHits = 0;
     int triHits = 0;
 
     for (size_t meshIndex = 0; meshIndex < m_meshes.size(); ++meshIndex) {
         subMesh& sm = m_meshes[meshIndex];
+        const int nodeIndex = m_meshNodeIndex[meshIndex];
+        const bool hasNodeTransform = nodeIndex >= 0 &&
+            static_cast<size_t>(nodeIndex) < m_nodeWorld.size();
+        const bool hasValidInverse = hasNodeTransform &&
+            m_nodeWorldInverseValid[nodeIndex] != 0;
+        const glm::mat4 identity(1.0f);
+        const glm::mat4& nodeMatrix = hasNodeTransform
+            ? m_nodeWorld[nodeIndex]
+            : identity;
 
-
-        const glm::mat4& nodeMatrix = meshNodeWorld[meshIndex];
-
-        // Keep localAABB unchanged; refresh its transformed model-space copy.
-        sm.modelAABB = transformAABB(sm.localAABB, nodeMatrix);
+        ray meshLocalRay = localRay;
+        float rayParameterScale = 1.0f;
+        bool canTransformRay = hasValidInverse;
+        if (canTransformRay) {
+            const glm::mat4& inverseNode = m_nodeWorldInverse[nodeIndex];
+            meshLocalRay.origin = glm::vec3(
+                inverseNode * glm::vec4(localRay.origin, 1.0f));
+            const glm::vec3 transformedDirection = glm::vec3(
+                inverseNode * glm::vec4(localRay.direction, 0.0f));
+            rayParameterScale = glm::length(transformedDirection);
+            if (rayParameterScale > 1e-8f) {
+                meshLocalRay.direction = transformedDirection / rayParameterScale;
+            }
+            else {
+                canTransformRay = false;
+            }
+        }
 
         float aabbDist = 0.0f;
-        if (!sm.modelAABB.intersects(localRay, aabbDist)) {
+        const AABB& broadPhaseBounds = canTransformRay ? sm.localAABB : sm.modelAABB;
+        const ray& broadPhaseRay = canTransformRay ? meshLocalRay : localRay;
+        if (!broadPhaseBounds.intersects(broadPhaseRay, aabbDist)) {
             continue;
         }
+        if (canTransformRay)
+            aabbDist /= rayParameterScale;
+        if (aabbDist >= closestDist)
+            continue;
 
         ++submeshHits;
 
         const auto& vertices = sm.geometry.getVertices();
         const auto& indices = sm.geometry.getIndices();
 
-        auto toModelSpace = [&nodeMatrix](const glm::vec3& point) {
-            return glm::vec3(nodeMatrix * glm::vec4(point, 1.0f));
-            };
-
-        bool hitTriangle = false;
-        float closestTriDist = (std::numeric_limits<float>::max)();
-
-        auto testTriangle = [&](size_t i0, size_t i1, size_t i2) {
-            const glm::vec3 v0 = toModelSpace(vertices[i0].position);
-            const glm::vec3 v1 = toModelSpace(vertices[i1].position);
-            const glm::vec3 v2 = toModelSpace(vertices[i2].position);
+        auto testTriangle = [&](std::uint32_t triangleOrdinal) {
+            const size_t triangleOffset = static_cast<size_t>(triangleOrdinal) * 3;
+            const size_t i0 = indices.empty()
+                ? triangleOffset
+                : indices[triangleOffset];
+            const size_t i1 = indices.empty()
+                ? triangleOffset + 1
+                : indices[triangleOffset + 1];
+            const size_t i2 = indices.empty()
+                ? triangleOffset + 2
+                : indices[triangleOffset + 2];
+            const glm::vec3 v0 = canTransformRay
+                ? vertices[i0].position
+                : glm::vec3(nodeMatrix * glm::vec4(vertices[i0].position, 1.0f));
+            const glm::vec3 v1 = canTransformRay
+                ? vertices[i1].position
+                : glm::vec3(nodeMatrix * glm::vec4(vertices[i1].position, 1.0f));
+            const glm::vec3 v2 = canTransformRay
+                ? vertices[i2].position
+                : glm::vec3(nodeMatrix * glm::vec4(vertices[i2].position, 1.0f));
 
             float triDist = 0.0f;
-            if (intersectTriangle(localRay, v0, v1, v2, triDist)) {
+            if (intersectTriangle(broadPhaseRay, v0, v1, v2, triDist)) {
                 ++triHits;
-                if (triDist < closestTriDist) {
-                    closestTriDist = triDist;
-                    hitTriangle = true;
+                const float modelRayDist = canTransformRay
+                    ? triDist / rayParameterScale
+                    : triDist;
+                if (modelRayDist < closestDist) {
+                    closestDist = modelRayDist;
+                    hitMeshIndex = static_cast<int>(meshIndex);
                 }
             }
+        };
+
+        if (canTransformRay && !sm.triangleBvh.empty()) {
+            auto visitBvh = [&](auto&& visitBvh, std::uint32_t nodeIndex, float nodeEntryDist) -> void {
+                if (nodeEntryDist / rayParameterScale >= closestDist)
+                    return;
+
+                const triangleBvhNode& node = sm.triangleBvh[nodeIndex];
+                if (node.triangleCount > 0) {
+                    const std::uint32_t end = node.first + node.triangleCount;
+                    for (std::uint32_t orderIndex = node.first; orderIndex < end; ++orderIndex)
+                        testTriangle(sm.triangleOrder[orderIndex]);
+                    return;
+                }
+
+                const triangleBvhNode& left = sm.triangleBvh[node.first];
+                const triangleBvhNode& right = sm.triangleBvh[node.second];
+                float leftEntry = 0.0f;
+                float rightEntry = 0.0f;
+                const bool hitLeft = left.bounds.intersects(meshLocalRay, leftEntry);
+                const bool hitRight = right.bounds.intersects(meshLocalRay, rightEntry);
+
+                if (hitLeft && hitRight) {
+                    if (leftEntry <= rightEntry) {
+                        visitBvh(visitBvh, node.first, leftEntry);
+                        visitBvh(visitBvh, node.second, rightEntry);
+                    }
+                    else {
+                        visitBvh(visitBvh, node.second, rightEntry);
+                        visitBvh(visitBvh, node.first, leftEntry);
+                    }
+                }
+                else if (hitLeft) {
+                    visitBvh(visitBvh, node.first, leftEntry);
+                }
+                else if (hitRight) {
+                    visitBvh(visitBvh, node.second, rightEntry);
+                }
             };
 
-        if (!indices.empty()) {
-            for (size_t i = 0; i + 2 < indices.size(); i += 3) {
-                testTriangle(indices[i], indices[i + 1], indices[i + 2]);
+            float rootEntry = 0.0f;
+            const triangleBvhNode& root = sm.triangleBvh[sm.triangleBvhRoot];
+            if (root.bounds.intersects(meshLocalRay, rootEntry)) {
+                visitBvh(visitBvh, sm.triangleBvhRoot, rootEntry);
             }
         }
         else {
-            for (size_t i = 0; i + 2 < vertices.size(); i += 3) {
-                testTriangle(i, i + 1, i + 2);
+            const size_t triangleCount = indices.empty()
+                ? vertices.size() / 3
+                : indices.size() / 3;
+            for (std::uint32_t triangle = 0; triangle < triangleCount; ++triangle) {
+                testTriangle(triangle);
             }
-        }
-
-        if (hitTriangle && closestTriDist < closestDist) {
-            closestDist = closestTriDist;
-            hitMeshIndex = static_cast<int>(meshIndex);
         }
     }
 
