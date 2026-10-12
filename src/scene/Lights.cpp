@@ -1,5 +1,5 @@
 #include "Lights.h"
-#include "Shader.h"
+#include "render/Shader.h"
 
 size_t lightManager::addLights(const lightConfig& light) {
     m_Lights.push_back(light);

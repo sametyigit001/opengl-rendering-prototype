@@ -19,7 +19,7 @@ Scene::Scene(uint32_t width, uint32_t height) : m_height(height), m_width(width)
 	m_cam = std::make_unique<Camera>(camConf);
 	m_cam->setSpeed(10.0f);
 	m_cam->setAspect(width,height);
-	const auto shaderDir = std::filesystem::path(__FILE__).parent_path() / "shaders";
+	const auto shaderDir = std::filesystem::path(__FILE__).parent_path().parent_path() / "shaders";
 	const auto vertexPath = (shaderDir / "shader.vert").string();
 	const auto fragmentPath = (shaderDir / "shader.frag").string();
 	m_shader = std::make_unique<Shader>(vertexPath.c_str(), fragmentPath.c_str());

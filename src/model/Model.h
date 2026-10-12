@@ -9,7 +9,7 @@
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
 #include "Mesh.h"
-#include "AABB.h"
+#include "spatial/AABB.h"
 
 struct triangleBvhNode {
 	AABB bounds;

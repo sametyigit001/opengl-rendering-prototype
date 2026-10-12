@@ -1,6 +1,6 @@
 #define GLM_ENABLE_EXPERIMENTAL
 #include "Model.h"
-#include "Ray.h"
+#include "spatial/Ray.h"
 #include "glm/gtx/quaternion.hpp"
 #include <iostream>
 #include <filesystem>

@@ -1,6 +1,6 @@
 # Refactored Engine Code
 
-A Windows x64 model viewer and editor built with a C++17 OpenGL renderer and a .NET 8 WPF interface. The WPF viewport hosts a native child window through the C bridge in `src/bridge.cpp`.
+A Windows x64 model viewer and editor built with a C++17 OpenGL renderer and a .NET 8 WPF interface. The WPF viewport hosts a native child window through the C bridge in `src/host/bridge.cpp`.
 
 ## Current features
 
@@ -27,15 +27,22 @@ The existing `refactored_engine_code.sln` is also available for Visual Studio. S
 ## Layout
 
 ```text
-editor/         WPF editor and native viewport interop
-src/            Renderer, model import, scene, picking, and Windows host
-src/shaders/    GLSL shader sources
+editor/         WPF application and window
+  Interop/      Native DLL declarations
+  Viewport/     Hosted OpenGL viewport control
+src/
+  host/         Native bridge and Windows child window
+  scene/        Scene, camera, and lights
+  model/        Imported models, meshes, materials, textures
+  render/       Shader and OpenGL buffer wrappers, GLAD loader
+  spatial/      Bounds and ray helpers
+  shaders/      GLSL shader sources
 dependencies/   Vendored headers and optional local libraries
 cmake/          CMake build helpers
 assets/         Local development assets (ignored)
 ```
 
-`src/main.cpp` and the old standalone GLFW window were removed when the editor became the application entry point. The public interop functions remain in `src/bridge.h`.
+`src/main.cpp` and the old standalone GLFW window were removed when the editor became the application entry point. The public interop functions remain in `src/host/bridge.h`.
 
 ## License
 

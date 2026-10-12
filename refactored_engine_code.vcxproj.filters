@@ -1,111 +1,111 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <Filter Include="Source Files">
-      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
-      <Extensions>cpp;c;cc;cxx;c++;cppm;ixx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    <Filter Include="host">
+      <UniqueIdentifier>{167705E4-2090-4B49-B212-AF9B789648BF}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Header Files">
-      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
-      <Extensions>h;hh;hpp;hxx;h++;hm;inl;inc;ipp;xsd</Extensions>
+    <Filter Include="model">
+      <UniqueIdentifier>{77C96CF6-9FA3-4BBE-BD83-2F87BEF4FC68}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Resource Files">
-      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
-      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    <Filter Include="render">
+      <UniqueIdentifier>{3D6E8C9E-89D2-44E8-AF29-3005F03F4233}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Classes">
-      <UniqueIdentifier>{fa002f8b-c60c-461e-b4ba-69a0b876f604}</UniqueIdentifier>
+    <Filter Include="scene">
+      <UniqueIdentifier>{A8316F68-4160-4382-98EB-C9FA144B4611}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="spatial">
+      <UniqueIdentifier>{52BCA414-4FC5-477D-BBE3-89274646567F}</UniqueIdentifier>
     </Filter>
     <Filter Include="shaders">
-      <UniqueIdentifier>{2121099d-69d6-4998-938b-548311ed87a4}</UniqueIdentifier>
+      <UniqueIdentifier>{ED3A7A49-29FF-4DB2-9F56-918F664C3F68}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="src\glad.c">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="src\host\bridge.cpp">
+      <Filter>host</Filter>
     </ClCompile>
-    <ClCompile Include="src\Shader.cpp">
-      <Filter>Classes</Filter>
+    <ClCompile Include="src\render\elementBuffer.cpp">
+      <Filter>render</Filter>
     </ClCompile>
-    <ClCompile Include="src\vertexBuffer.cpp">
-      <Filter>Classes</Filter>
+    <ClCompile Include="src\render\glad.c">
+      <Filter>render</Filter>
     </ClCompile>
-    <ClCompile Include="src\elementBuffer.cpp">
-      <Filter>Classes</Filter>
+    <ClCompile Include="src\scene\Lights.cpp">
+      <Filter>scene</Filter>
     </ClCompile>
-    <ClCompile Include="src\vertexArray.cpp">
-      <Filter>Classes</Filter>
+    <ClCompile Include="src\model\Material.cpp">
+      <Filter>model</Filter>
     </ClCompile>
-    <ClCompile Include="src\Mesh.cpp">
-      <Filter>Classes</Filter>
+    <ClCompile Include="src\model\Mesh.cpp">
+      <Filter>model</Filter>
     </ClCompile>
-    <ClCompile Include="src\Texture.cpp">
-      <Filter>Classes</Filter>
+    <ClCompile Include="src\model\Model.cpp">
+      <Filter>model</Filter>
     </ClCompile>
-    <ClCompile Include="src\Lights.cpp">
-      <Filter>Classes</Filter>
+    <ClCompile Include="src\scene\Scene.cpp">
+      <Filter>scene</Filter>
     </ClCompile>
-    <ClCompile Include="src\Material.cpp">
-      <Filter>Classes</Filter>
+    <ClCompile Include="src\render\Shader.cpp">
+      <Filter>render</Filter>
     </ClCompile>
-    <ClCompile Include="src\Model.cpp">
-      <Filter>Classes</Filter>
+    <ClCompile Include="src\model\Texture.cpp">
+      <Filter>model</Filter>
     </ClCompile>
-    <ClCompile Include="src\bridge.cpp">
-      <Filter>Classes</Filter>
+    <ClCompile Include="src\render\vertexArray.cpp">
+      <Filter>render</Filter>
     </ClCompile>
-    <ClCompile Include="src\winHost.cpp">
-      <Filter>Classes</Filter>
+    <ClCompile Include="src\render\vertexBuffer.cpp">
+      <Filter>render</Filter>
     </ClCompile>
-    <ClCompile Include="src\Scene.cpp">
-      <Filter>Classes</Filter>
+    <ClCompile Include="src\host\winHost.cpp">
+      <Filter>host</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="src\Shader.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="src\spatial\AABB.h">
+      <Filter>spatial</Filter>
     </ClInclude>
-    <ClInclude Include="src\vertexBuffer.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="src\host\bridge.h">
+      <Filter>host</Filter>
     </ClInclude>
-    <ClInclude Include="src\elementBuffer.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="src\scene\Camera.h">
+      <Filter>scene</Filter>
     </ClInclude>
-    <ClInclude Include="src\vertexArray.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="src\render\elementBuffer.h">
+      <Filter>render</Filter>
     </ClInclude>
-    <ClInclude Include="src\Camera.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="src\scene\Lights.h">
+      <Filter>scene</Filter>
     </ClInclude>
-    <ClInclude Include="src\Mesh.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="src\model\Material.h">
+      <Filter>model</Filter>
     </ClInclude>
-    <ClInclude Include="src\Texture.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="src\model\Mesh.h">
+      <Filter>model</Filter>
     </ClInclude>
-    <ClInclude Include="src\Lights.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="src\model\Model.h">
+      <Filter>model</Filter>
     </ClInclude>
-    <ClInclude Include="src\Material.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="src\spatial\Ray.h">
+      <Filter>spatial</Filter>
     </ClInclude>
-    <ClInclude Include="src\Model.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="src\scene\Scene.h">
+      <Filter>scene</Filter>
     </ClInclude>
-    <ClInclude Include="src\AABB.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="src\render\Shader.h">
+      <Filter>render</Filter>
     </ClInclude>
-    <ClInclude Include="src\bridge.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="src\model\Texture.h">
+      <Filter>model</Filter>
     </ClInclude>
-    <ClInclude Include="src\winHost.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="src\render\vertexArray.h">
+      <Filter>render</Filter>
     </ClInclude>
-    <ClInclude Include="src\Scene.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="src\render\vertexBuffer.h">
+      <Filter>render</Filter>
     </ClInclude>
-    <ClInclude Include="src\Ray.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="src\host\winHost.h">
+      <Filter>host</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

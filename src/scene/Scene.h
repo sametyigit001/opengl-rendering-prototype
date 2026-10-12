@@ -8,10 +8,10 @@
 #include "glm/glm.hpp"
 
 #include "Camera.h"
-#include "Shader.h"
-#include "Model.h"
+#include "render/Shader.h"
+#include "model/Model.h"
 #include "Lights.h"
-#include "Ray.h"
+#include "spatial/Ray.h"
 
 struct storeIndexes {
 	bool selected = false;

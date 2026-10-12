@@ -13,7 +13,7 @@
 #include <string>
 
 #include "bridge.h"
-#include "Scene.h"
+#include "scene/Scene.h"
 #include "winHost.h"
 
 

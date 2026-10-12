@@ -3,12 +3,12 @@
 
 #include <vector>
 #include <string>
-#include "vertexArray.h"
-#include "vertexBuffer.h"
-#include "elementBuffer.h"
+#include "render/vertexArray.h"
+#include "render/vertexBuffer.h"
+#include "render/elementBuffer.h"
 #include "Texture.h"
 #include "glm/glm.hpp"
-#include "Shader.h"
+#include "render/Shader.h"
 #include "Material.h"
 
 

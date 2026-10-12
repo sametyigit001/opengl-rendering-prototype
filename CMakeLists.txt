@@ -35,19 +35,19 @@ else()
 endif()
 
 add_library(refactored_engine_code SHARED
-    src/bridge.cpp
-    src/elementBuffer.cpp
-    src/glad.c
-    src/Lights.cpp
-    src/Material.cpp
-    src/Mesh.cpp
-    src/Model.cpp
-    src/Scene.cpp
-    src/Shader.cpp
-    src/Texture.cpp
-    src/vertexArray.cpp
-    src/vertexBuffer.cpp
-    src/winHost.cpp
+    src/host/bridge.cpp
+    src/host/winHost.cpp
+    src/model/Material.cpp
+    src/model/Mesh.cpp
+    src/model/Model.cpp
+    src/model/Texture.cpp
+    src/render/elementBuffer.cpp
+    src/render/glad.c
+    src/render/Shader.cpp
+    src/render/vertexArray.cpp
+    src/render/vertexBuffer.cpp
+    src/scene/Lights.cpp
+    src/scene/Scene.cpp
 )
 
 target_include_directories(refactored_engine_code PRIVATE
