@@ -1,5 +1,6 @@
 #include "Scene.h"
 #include <glm/gtc/matrix_transform.hpp>
+#include <filesystem>
 
 Scene::Scene(uint32_t width, uint32_t height) : m_height(height), m_width(width) {
 	glViewport(0, 0, width, height);
@@ -18,7 +19,10 @@ Scene::Scene(uint32_t width, uint32_t height) : m_height(height), m_width(width)
 	m_cam = std::make_unique<Camera>(camConf);
 	m_cam->setSpeed(10.0f);
 	m_cam->setAspect(width,height);
-	m_shader = std::make_unique<Shader>("C:/Users/Samet/source/repos/refactored_engine_code/src/shaders/shader.vert","C:/Users/Samet/source/repos/refactored_engine_code/src/shaders/shader.frag");
+	const auto shaderDir = std::filesystem::path(__FILE__).parent_path() / "shaders";
+	const auto vertexPath = (shaderDir / "shader.vert").string();
+	const auto fragmentPath = (shaderDir / "shader.frag").string();
+	m_shader = std::make_unique<Shader>(vertexPath.c_str(), fragmentPath.c_str());
 	for (auto& m : m_model) {
 		m = nullptr;
 	}

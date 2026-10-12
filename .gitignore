@@ -364,3 +364,8 @@ FodyWeavers.xsd
 assets/
 dependencies/libs/
 dependencies/include/
+
+# Local tooling data and generated reports
+.silk/
+silk-map*.html
+build/
