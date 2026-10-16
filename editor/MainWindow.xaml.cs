@@ -1,7 +1,9 @@
 ﻿using Microsoft.Win32;
+using System;
 using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
@@ -12,7 +14,6 @@ using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
 using System.Windows.Threading;
-using System.Threading.Tasks;
 
 
 namespace rendererUI
@@ -32,7 +33,15 @@ namespace rendererUI
         private bool _isImporting;
         public long TreeSelectionRevision { get; private set; }
 
-        private Dictionary<(int modelIndex, int nodeIndex), TreeViewItem> globalTree = new();
+        enum HierarchyItemKind { Entity, Model, ModelNode, Camera, Light }
+
+        record HierarchyTag(
+            int EntityId,
+            HierarchyItemKind Kind,
+            int? NodeIndex = -1);
+
+        private Dictionary<HierarchyTag, TreeViewItem> globalTree = new();
+        private TreeViewItem? _contextTreeItem;
         int pickedNode;
         private static bool TryParseCoordinate(string text, out float value)
         {
@@ -140,31 +149,80 @@ namespace rendererUI
         private void Button_Click(object sender, RoutedEventArgs e)
         {
             if (HierarchyTree.SelectedItem is TreeViewItem selectedItem &&
-                selectedItem.Tag is ValueTuple<int, int> indexes)
+                selectedItem.Tag is HierarchyTag indexes)
             {
-                int modelIndex = indexes.Item1;
-
-                coreEngine.deleteModel(modelIndex);
-
-                foreach (var key in globalTree.Keys
-                             .Where(key => key.modelIndex == modelIndex)
-                             .ToList())
+                int entityIndex = indexes.EntityId;
+                if (indexes.Kind == HierarchyItemKind.Entity)
                 {
-                    globalTree.Remove(key);
+                    DeleteEntityFromTree(entityIndex);
                 }
+                else if (indexes.Kind == HierarchyItemKind.Model)
+                {
+                    coreEngine.deleteModel(entityIndex);
 
-                var modelRoot = HierarchyTree.Items
-                    .OfType<TreeViewItem>()
-                    .FirstOrDefault(item =>
-                        item.Tag is ValueTuple<int, int> tag &&
-                        tag.Item1 == modelIndex &&
-                        tag.Item2 == -1);
+                    foreach (var key in globalTree.Keys
+                                .Where(key => key.EntityId == entityIndex &&
+                                (key.Kind == HierarchyItemKind.Model ||
+                                key.Kind == HierarchyItemKind.ModelNode))
+                                 .ToList())
+                    {
+                        globalTree.Remove(key);
+                    }
 
-                if (modelRoot != null)
-                    HierarchyTree.Items.Remove(modelRoot);
+                    var entityRoot = HierarchyTree.Items
+                        .OfType<TreeViewItem>()
+                        .FirstOrDefault(item =>
+                            item.Tag is HierarchyTag tag &&
+                            tag.EntityId == entityIndex &&
+                            tag.Kind == HierarchyItemKind.Entity);
+
+                    entityRoot?.Items.Remove(selectedItem);
+                }
             }
         }
 
+        private void DeleteEntityFromTree(int entityIndex)
+        {
+            coreEngine.hostDeleteEntity(entityIndex);
+
+            foreach (var key in globalTree.Keys
+                         .Where(key => key.EntityId == entityIndex)
+                         .ToList())
+            {
+                globalTree.Remove(key);
+            }
+
+            var entityRoot = HierarchyTree.Items
+                .OfType<TreeViewItem>()
+                .FirstOrDefault(item => item.Tag is HierarchyTag tag &&
+                                        tag.EntityId == entityIndex &&
+                                        tag.Kind == HierarchyItemKind.Entity);
+
+            if (entityRoot != null)
+                HierarchyTree.Items.Remove(entityRoot);
+        }
+
+        private void HierarchyTree_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            _contextTreeItem = null;
+            DependencyObject? source = e.OriginalSource as DependencyObject;
+            while (source != null && source is not TreeViewItem)
+                source = VisualTreeHelper.GetParent(source);
+
+            if (source is TreeViewItem item)
+            {
+                _contextTreeItem = item;
+                item.IsSelected = true;
+            }
+        }
+
+        private void DeleteEntityContextMenu_Click(object sender, RoutedEventArgs e)
+        {
+            if (_contextTreeItem?.Tag is HierarchyTag tag)
+                DeleteEntityFromTree(tag.EntityId);
+
+            _contextTreeItem = null;
+        }
         private static bool ParseCoordinateOrBlank(
      string text, float blankDefault, out float value)
         {
@@ -176,54 +234,61 @@ namespace rendererUI
 
             return TryParseCoordinate(text, out value);
         }
-        private async Task PopulateHierarchyAsync(int modelIndex, int nodeCount)
+        private async Task PopulateHierarchyAsync(int entityIndex, int nodeCount)
         {
-            Dictionary<(int, int), TreeViewItem> nodeMap = new Dictionary<(int, int), TreeViewItem>();
+            Dictionary<HierarchyTag, TreeViewItem> nodeMap = new Dictionary<HierarchyTag, TreeViewItem>();
 
             string filenameNoExt = System.IO.Path.GetFileNameWithoutExtension(lastFileName);
 
+            var entityItem = new TreeViewItem
+            {
+                Header = "[Entity]",
+                Tag = new HierarchyTag(entityIndex, HierarchyItemKind.Entity),
+                IsExpanded = false
+            };
 
             var modelItem = new TreeViewItem
             {
-                Header = "[Model] " + filenameNoExt,
-                Tag = (modelIndex, -1),
-                IsExpanded = true
+                Header = $"[Model] {filenameNoExt}",
+                Tag = new HierarchyTag(entityIndex, HierarchyItemKind.Model),
+                IsExpanded = false
             };
 
-            nodeMap[(modelIndex, -1)] = modelItem;
-            globalTree[(modelIndex, -1)] = modelItem;
-            HierarchyTree.Items.Add(modelItem);
+            globalTree[(HierarchyTag)modelItem.Tag] = modelItem;
+            entityItem.Items.Add(modelItem);
+            nodeMap[(HierarchyTag)entityItem.Tag] = entityItem;
+            globalTree[(HierarchyTag)entityItem.Tag] = entityItem;
+            HierarchyTree.Items.Add(entityItem);
 
             for (int i = 0; i < nodeCount; i++)
             {
                 if (i > 0 && i % 128 == 0)
                     await Dispatcher.Yield(DispatcherPriority.Background);
 
-                string name = coreEngine.GetNodeName(modelIndex, i);
-                int parentId = coreEngine.hostGetNodeParent(modelIndex, i);
+                string name = coreEngine.GetNodeName(entityIndex, i);
+                int parentId = coreEngine.hostGetNodeParent(entityIndex, i);
 
                 if (string.IsNullOrWhiteSpace(name))
                 {
                     name = $"Unnamed_Node_{i}";
                 }
 
-
-
                 TreeViewItem item = new TreeViewItem
                 {
                     Header = name,
-                    Tag = (modelIndex, i),
+                    Tag = new HierarchyTag(entityIndex, HierarchyItemKind.ModelNode, i),
                     IsExpanded = false
                 };
 
-                nodeMap[(modelIndex, i)] = item;
-                globalTree[(modelIndex, i)] = item;
-
+                nodeMap[(HierarchyTag)item.Tag] = item;
+                globalTree[(HierarchyTag)item.Tag] = item;
                 if (parentId == -1)
                 {
                     modelItem.Items.Add(item);
                 }
-                else if (nodeMap.TryGetValue((modelIndex, parentId), out var parentItem))
+                else if (nodeMap.TryGetValue(
+                    new HierarchyTag(entityIndex, HierarchyItemKind.ModelNode, parentId),
+                    out var parentItem))
                 {
                     parentItem.Items.Add(item);
                 }
@@ -242,39 +307,87 @@ namespace rendererUI
         {
             TreeSelectionRevision++;
 
-            if (HierarchyTree.SelectedItem is TreeViewItem selectedItem && ((int modelIndex, int nodeIndex))selectedItem.Tag is var indexes)
+            if (HierarchyTree.SelectedItem is TreeViewItem selectedItem &&
+                selectedItem.Tag is HierarchyTag tag &&
+                (tag.Kind == HierarchyItemKind.Entity ||
+                 tag.Kind == HierarchyItemKind.Model ||
+                 (tag.Kind == HierarchyItemKind.ModelNode && tag.NodeIndex.HasValue)))
             {
+
+                int entityIndex = tag.EntityId;
+                int nodeIndex = tag.Kind == HierarchyItemKind.ModelNode
+                    ? tag.NodeIndex!.Value
+                    : -1;
+
                 _shouldUpdatePos = false;
                 _shouldUpdateRotation = false;
                 _shouldUpdateScale = false;
 
+                btnDeleteSelection.Content = tag.Kind == HierarchyItemKind.Model ? "Remove Model" : "Delete Entity";
+                btnDeleteSelection.IsEnabled = tag.Kind == HierarchyItemKind.Entity ||
+                                               tag.Kind == HierarchyItemKind.Model;
+
                 try
                 {
-                    if (coreEngine.hostSelectNode(indexes.modelIndex, indexes.nodeIndex) == 0)
-                        return;
-                    if (indexes.nodeIndex == -1)
+                    switch ((HierarchyItemKind)tag.Kind)
                     {
-                        coreEngine.hostSelectModel(indexes.modelIndex);
-                    }
+                        case HierarchyItemKind.Entity:
+                            ModelInspectorSection.Visibility = Visibility.Collapsed;
+                            EntityInspectorSection.Visibility = Visibility.Visible;
+                            btnDeleteSelection.Visibility = Visibility.Visible;
 
-                    if (coreEngine.hostGetNodePos(indexes.modelIndex, indexes.nodeIndex, out float px, out float py, out float pz) != 0)
-                    {
-                        PositionXTextBox.Text = px.ToString("F3");
-                        PositionYTextBox.Text = py.ToString("F3");
-                        PositionZTextBox.Text = pz.ToString("F3");
-                    }
+                            break;
 
-                    if (coreEngine.hostGetNodeRotation(indexes.modelIndex, indexes.nodeIndex, out float rx, out float ry, out float rz) != 0)
-                    {
-                        RotationXTextBox.Text = rx.ToString("F3");
-                        RotationYTextBox.Text = ry.ToString("F3");
-                        RotationZTextBox.Text = rz.ToString("F3");
-                    }
-                    if (coreEngine.hostGetNodeScale(indexes.modelIndex, indexes.nodeIndex, out float sx, out float sy, out float sz) != 0)
-                    {
-                        ScaleXTextBox.Text = sx.ToString("F3");
-                        ScaleYTextBox.Text = sy.ToString("F3");
-                        ScaleZTextBox.Text = sz.ToString("F3");
+                        case HierarchyItemKind.ModelNode:
+                            coreEngine.hostSelectNode(entityIndex, nodeIndex);
+                            ModelInspectorSection.Visibility = Visibility.Visible;
+                            EntityInspectorSection.Visibility = Visibility.Collapsed;
+                            btnDeleteSelection.Visibility = Visibility.Collapsed;
+                            if (coreEngine.hostGetNodePos(entityIndex, nodeIndex, out float px, out float py, out float pz) != 0)
+                            {
+                                PositionXTextBox.Text = px.ToString("F3");
+                                PositionYTextBox.Text = py.ToString("F3");
+                                PositionZTextBox.Text = pz.ToString("F3");
+                            }
+
+                            if (coreEngine.hostGetNodeRotation(entityIndex, nodeIndex, out float rx, out float ry, out float rz) != 0)
+                            {
+                                RotationXTextBox.Text = rx.ToString("F3");
+                                RotationYTextBox.Text = ry.ToString("F3");
+                                RotationZTextBox.Text = rz.ToString("F3");
+                            }
+                            if (coreEngine.hostGetNodeScale(entityIndex, nodeIndex, out float sx, out float sy, out float sz) != 0)
+                            {
+                                ScaleXTextBox.Text = sx.ToString("F3");
+                                ScaleYTextBox.Text = sy.ToString("F3");
+                                ScaleZTextBox.Text = sz.ToString("F3");
+                            }
+                            break;
+                        case HierarchyItemKind.Model:
+                            coreEngine.hostSelectModel(entityIndex);
+                            ModelInspectorSection.Visibility = Visibility.Visible;
+                            EntityInspectorSection.Visibility = Visibility.Collapsed;
+                            btnDeleteSelection.Visibility = Visibility.Visible;
+                            if (coreEngine.hostGetNodePos(entityIndex, nodeIndex, out float m_px, out float m_py, out float m_pz) != 0)
+                            {
+                                PositionXTextBox.Text = m_px.ToString("F3");
+                                PositionYTextBox.Text = m_py.ToString("F3");
+                                PositionZTextBox.Text = m_pz.ToString("F3");
+                            }
+
+                            if (coreEngine.hostGetNodeRotation(entityIndex, nodeIndex, out float m_rx, out float m_ry, out float m_rz) != 0)
+                            {
+                                RotationXTextBox.Text = m_rx.ToString("F3");
+                                RotationYTextBox.Text = m_ry.ToString("F3");
+                                RotationZTextBox.Text = m_rz.ToString("F3");
+                            }
+                            if (coreEngine.hostGetNodeScale(entityIndex, nodeIndex, out float m_sx, out float m_sy, out float m_sz) != 0)
+                            {
+                                ScaleXTextBox.Text = m_sx.ToString("F3");
+                                ScaleYTextBox.Text = m_sy.ToString("F3");
+                                ScaleZTextBox.Text = m_sz.ToString("F3");
+                            }
+                            break;
                     }
                 }
                 finally
@@ -286,19 +399,25 @@ namespace rendererUI
             }
         }
 
+
         private void PositionXTextBox_TextChanged(object sender, TextChangedEventArgs e)
         {
             if (HierarchyTree.SelectedItem is TreeViewItem selectedItem)
             {
 
-                if (((int ModelIndex, int NodeIndex))selectedItem.Tag is var indexes && _shouldUpdatePos)
+                if (selectedItem.Tag is HierarchyTag tag && (tag.Kind == HierarchyItemKind.Model || (tag.Kind == HierarchyItemKind.ModelNode && tag.NodeIndex.HasValue)) && _shouldUpdatePos)
                 {
+                    int entityIndex = tag.EntityId;
+                    int nodeIndex = tag.Kind == HierarchyItemKind.Entity
+                        ? -1
+                        : tag.NodeIndex!.Value;
+
                     float x, y, z;
                     ParseCoordinateOrBlank(PositionXTextBox.Text, 0f, out x);
                     ParseCoordinateOrBlank(PositionYTextBox.Text, 0f, out y);
                     ParseCoordinateOrBlank(PositionZTextBox.Text, 0f, out z);
 
-                    coreEngine.hostSetNodePos(indexes.ModelIndex, indexes.NodeIndex, x, y, z);
+                    coreEngine.hostSetNodePos(entityIndex, nodeIndex, x, y, z);
 
                 }
 
@@ -310,15 +429,18 @@ namespace rendererUI
             if (HierarchyTree.SelectedItem is TreeViewItem selectedItem)
             {
 
-                if (((int ModelIndex, int NodeIndex))selectedItem.Tag is var indexes && _shouldUpdatePos)
+                if (selectedItem.Tag is HierarchyTag tag && (tag.Kind == HierarchyItemKind.Model || (tag.Kind == HierarchyItemKind.ModelNode && tag.NodeIndex.HasValue)) && _shouldUpdatePos)
                 {
-
+                    int entityIndex = tag.EntityId;
+                    int nodeIndex = tag.Kind == HierarchyItemKind.Entity
+                        ? -1
+                        : tag.NodeIndex!.Value;
                     float x, y, z;
                     ParseCoordinateOrBlank(PositionXTextBox.Text, 0f, out x);
                     ParseCoordinateOrBlank(PositionYTextBox.Text, 0f, out y);
                     ParseCoordinateOrBlank(PositionZTextBox.Text, 0f, out z);
 
-                    coreEngine.hostSetNodePos(indexes.ModelIndex, indexes.NodeIndex, x, y, z);
+                    coreEngine.hostSetNodePos(entityIndex, nodeIndex, x, y, z);
                 }
 
             }
@@ -329,42 +451,52 @@ namespace rendererUI
             if (HierarchyTree.SelectedItem is TreeViewItem selectedItem)
             {
 
-                if (((int ModelIndex, int NodeIndex))selectedItem.Tag is var indexes && _shouldUpdatePos)
+                if (selectedItem.Tag is HierarchyTag tag && (tag.Kind == HierarchyItemKind.Model || (tag.Kind == HierarchyItemKind.ModelNode && tag.NodeIndex.HasValue)) && _shouldUpdatePos)
                 {
+                    int entityIndex = tag.EntityId;
+                    int nodeIndex = tag.Kind == HierarchyItemKind.Entity
+                        ? -1
+                        : tag.NodeIndex!.Value;
                     float x, y, z;
                     ParseCoordinateOrBlank(PositionXTextBox.Text, 0f, out x);
                     ParseCoordinateOrBlank(PositionYTextBox.Text, 0f, out y);
                     ParseCoordinateOrBlank(PositionZTextBox.Text, 0f, out z);
 
-                    coreEngine.hostSetNodePos(indexes.ModelIndex, indexes.NodeIndex, x, y, z);
+                    coreEngine.hostSetNodePos(entityIndex, nodeIndex, x, y, z);
                 }
 
             }
         }
-        public void SelectNodeFromViewport(int modelIndex, int nodeIndex)
+        public void SelectNodeFromViewport(int entityIndex, int nodeIndex)
         {
-            if (globalTree.TryGetValue((modelIndex, nodeIndex), out var item))
-                item.IsSelected = true;
-        }
-        public void SelectModelFromViewport(int modelIndex)
-        {
-            if (globalTree.TryGetValue((modelIndex, -1), out var item))
+            var key = new HierarchyTag(entityIndex, HierarchyItemKind.ModelNode, nodeIndex);
+            if (globalTree.TryGetValue(key, out var item))
                 item.IsSelected = true;
         }
 
+        public void SelectModelFromViewport(int entityIndex)
+        {
+            var key = new HierarchyTag(entityIndex, HierarchyItemKind.Model);
+            if (globalTree.TryGetValue(key, out var item))
+                item.IsSelected = true;
+        }
         private void RotationXTextBox_TextChanged(object sender, TextChangedEventArgs e)
         {
             if (HierarchyTree.SelectedItem is TreeViewItem selectedItem)
             {
 
-                if (((int ModelIndex, int NodeIndex))selectedItem.Tag is var indexes && _shouldUpdateRotation)
+                if (selectedItem.Tag is HierarchyTag tag && (tag.Kind == HierarchyItemKind.Model || (tag.Kind == HierarchyItemKind.ModelNode && tag.NodeIndex.HasValue)) && _shouldUpdateRotation)
                 {
+                    int entityIndex = tag.EntityId;
+                    int nodeIndex = tag.Kind == HierarchyItemKind.Entity
+                        ? -1
+                        : tag.NodeIndex!.Value;
                     float x, y, z;
                     ParseCoordinateOrBlank(RotationXTextBox.Text, 0f, out x);
                     ParseCoordinateOrBlank(RotationYTextBox.Text, 0f, out y);
                     ParseCoordinateOrBlank(RotationZTextBox.Text, 0f, out z);
 
-                    coreEngine.hostSetNodeRotation(indexes.ModelIndex, indexes.NodeIndex, x, y, z);
+                    coreEngine.hostSetNodeRotation(entityIndex, nodeIndex, x, y, z);
                 }
 
             }
@@ -376,14 +508,18 @@ namespace rendererUI
             if (HierarchyTree.SelectedItem is TreeViewItem selectedItem)
             {
 
-                if (((int ModelIndex, int NodeIndex))selectedItem.Tag is var indexes && _shouldUpdateRotation)
+                if (selectedItem.Tag is HierarchyTag tag && (tag.Kind == HierarchyItemKind.Model || (tag.Kind == HierarchyItemKind.ModelNode && tag.NodeIndex.HasValue)) && _shouldUpdateRotation)
                 {
+                    int entityIndex = tag.EntityId;
+                    int nodeIndex = tag.Kind == HierarchyItemKind.Entity
+                        ? -1
+                        : tag.NodeIndex!.Value;
                     float x, y, z;
                     ParseCoordinateOrBlank(RotationXTextBox.Text, 0f, out x);
                     ParseCoordinateOrBlank(RotationYTextBox.Text, 0f, out y);
                     ParseCoordinateOrBlank(RotationZTextBox.Text, 0f, out z);
 
-                    coreEngine.hostSetNodeRotation(indexes.ModelIndex, indexes.NodeIndex, x, y, z);
+                    coreEngine.hostSetNodeRotation(entityIndex, nodeIndex, x, y, z);
                 }
 
             }
@@ -394,14 +530,18 @@ namespace rendererUI
             if (HierarchyTree.SelectedItem is TreeViewItem selectedItem)
             {
 
-                if (((int ModelIndex, int NodeIndex))selectedItem.Tag is var indexes && _shouldUpdateRotation)
+                if (selectedItem.Tag is HierarchyTag tag && (tag.Kind == HierarchyItemKind.Model || (tag.Kind == HierarchyItemKind.ModelNode && tag.NodeIndex.HasValue)) && _shouldUpdateRotation)
                 {
+                    int entityIndex = tag.EntityId;
+                    int nodeIndex = tag.Kind == HierarchyItemKind.Entity
+                        ? -1
+                        : tag.NodeIndex!.Value;
                     float x, y, z;
                     ParseCoordinateOrBlank(RotationXTextBox.Text, 0f, out x);
                     ParseCoordinateOrBlank(RotationYTextBox.Text, 0f, out y);
                     ParseCoordinateOrBlank(RotationZTextBox.Text, 0f, out z);
 
-                    coreEngine.hostSetNodeRotation(indexes.ModelIndex, indexes.NodeIndex, x, y, z);
+                    coreEngine.hostSetNodeRotation(entityIndex, nodeIndex, x, y, z);
                 }
 
             }
@@ -412,14 +552,18 @@ namespace rendererUI
             if (HierarchyTree.SelectedItem is TreeViewItem selectedItem)
             {
 
-                if (((int ModelIndex, int NodeIndex))selectedItem.Tag is var indexes && _shouldUpdateScale)
+                if (selectedItem.Tag is HierarchyTag tag && (tag.Kind == HierarchyItemKind.Model || (tag.Kind == HierarchyItemKind.ModelNode && tag.NodeIndex.HasValue)) && _shouldUpdateScale)
                 {
+                    int entityIndex = tag.EntityId;
+                    int nodeIndex = tag.Kind == HierarchyItemKind.Entity
+                        ? -1
+                        : tag.NodeIndex!.Value;
                     float x, y, z;
                     ParseCoordinateOrBlank(ScaleXTextBox.Text, 0f, out x);
                     ParseCoordinateOrBlank(ScaleYTextBox.Text, 0f, out y);
                     ParseCoordinateOrBlank(ScaleZTextBox.Text, 0f, out z);
 
-                    coreEngine.hostSetNodeScale(indexes.ModelIndex, indexes.NodeIndex, x, y, z);
+                    coreEngine.hostSetNodeScale(entityIndex, nodeIndex, x, y, z);
                 }
 
             }
@@ -430,14 +574,18 @@ namespace rendererUI
             if (HierarchyTree.SelectedItem is TreeViewItem selectedItem)
             {
 
-                if (((int ModelIndex, int NodeIndex))selectedItem.Tag is var indexes && _shouldUpdateScale)
+                if (selectedItem.Tag is HierarchyTag tag && (tag.Kind == HierarchyItemKind.Model || (tag.Kind == HierarchyItemKind.ModelNode && tag.NodeIndex.HasValue)) && _shouldUpdateScale)
                 {
+                    int entityIndex = tag.EntityId;
+                    int nodeIndex = tag.Kind == HierarchyItemKind.Entity
+                        ? -1
+                        : tag.NodeIndex!.Value;
                     float x, y, z;
                     ParseCoordinateOrBlank(ScaleXTextBox.Text, 0f, out x);
                     ParseCoordinateOrBlank(ScaleYTextBox.Text, 0f, out y);
                     ParseCoordinateOrBlank(ScaleZTextBox.Text, 0f, out z);
 
-                    coreEngine.hostSetNodeScale(indexes.ModelIndex, indexes.NodeIndex, x, y, z);
+                    coreEngine.hostSetNodeScale(entityIndex, nodeIndex, x, y, z);
                 }
 
             }
@@ -448,14 +596,18 @@ namespace rendererUI
             if (HierarchyTree.SelectedItem is TreeViewItem selectedItem)
             {
 
-                if (((int ModelIndex, int NodeIndex))selectedItem.Tag is var indexes && _shouldUpdateScale)
+                if (selectedItem.Tag is HierarchyTag tag && (tag.Kind == HierarchyItemKind.Model || (tag.Kind == HierarchyItemKind.ModelNode && tag.NodeIndex.HasValue)) && _shouldUpdateScale)
                 {
+                    int entityIndex = tag.EntityId;
+                    int nodeIndex = tag.Kind == HierarchyItemKind.Entity
+                        ? -1
+                        : tag.NodeIndex!.Value;
                     float x, y, z;
                     ParseCoordinateOrBlank(ScaleXTextBox.Text, 0f, out x);
                     ParseCoordinateOrBlank(ScaleYTextBox.Text, 0f, out y);
                     ParseCoordinateOrBlank(ScaleZTextBox.Text, 0f, out z);
 
-                    coreEngine.hostSetNodeScale(indexes.ModelIndex, indexes.NodeIndex, x, y, z);
+                    coreEngine.hostSetNodeScale(entityIndex, nodeIndex, x, y, z);
                 }
 
             }
@@ -500,17 +652,37 @@ namespace rendererUI
             }
         }
 
+        private void CreateEntityButton_Click(object sender, RoutedEventArgs e)
+        {
+            int id = coreEngine.hostNewEntity();
+            if (id < 0)
+            {
+                ImportStatusText.Text = "Could not create entity.";
+                return;
+            }
+
+            HierarchyTag tag = new HierarchyTag(id,HierarchyItemKind.Entity);
+            var entityItem = new TreeViewItem
+            {
+                Header = "[Entity]",
+                Tag = tag,
+                IsExpanded = false
+            };
+            globalTree.Add(tag,entityItem);
+            HierarchyTree.Items.Add(entityItem);
+        }
 
         private void WireframeMode_Click(object sender, RoutedEventArgs e)
         {
             if (HierarchyTree.SelectedItem is not TreeViewItem item ||
-                item.Tag is not ValueTuple<int, int> indexes)
+                item.Tag is not HierarchyTag tag)
                 return;
 
+
             if (WireframeCheckBox.IsChecked == true)
-                coreEngine.hostEnableWireframe(indexes.Item1);
+                coreEngine.hostEnableWireframe(tag.EntityId);
             else
-                coreEngine.hostDisableWireframe(indexes.Item1);
+                coreEngine.hostDisableWireframe(tag.EntityId);
         }
 
     }

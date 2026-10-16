@@ -65,6 +65,10 @@ namespace rendererUI
         public static extern void hostDisableWireframe(int index);
         [DllImport(DLLName, CallingConvention = CallingConvention.Cdecl)]
         public static extern void hostEnableWireframe(int index);
+        [DllImport(DLLName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int hostNewEntity();
+        [DllImport(DLLName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void hostDeleteEntity(int entityIndex);
 
         // Implement this export in the engine bridge to expose the latest
         // render-thread measurements to the UI.

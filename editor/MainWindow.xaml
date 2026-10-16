@@ -38,6 +38,14 @@
                         Foreground="#CCCCCC"
                         BorderBrush="#3E3E42"/>
 
+                <Button x:Name="CreateEntityButton"
+                        Content="+ Empty Entity"
+                        Margin="3"
+                        Padding="10,2"
+                        Background="#2D2D30"
+                        Foreground="#CCCCCC"
+                        BorderBrush="#3E3E42" Click="CreateEntityButton_Click"/>
+
                 <Separator Background="#3E3E42" Margin="6,4"/>
 
                 <TextBlock Text="Target"
@@ -131,6 +139,7 @@
                     <TreeView x:Name="HierarchyTree"
                               SelectedItemChanged="HierarchyTree_SelectedItemChanged"
                               PreviewMouseLeftButtonUp="HierarchyTree_PreviewMouseLeftButtonUp"
+                              PreviewMouseRightButtonDown="HierarchyTree_PreviewMouseRightButtonDown"
                               Background="Transparent"
                               BorderThickness="0"
                               Foreground="#E6E6E6"
@@ -303,7 +312,8 @@
                                          Foreground="#CCCCCC"
                                          BorderBrush="#3E3E42">
                                 <MenuItem Header="Delete Entity"
-                                          Foreground="#E06C75"/>
+                                          Foreground="#E06C75"
+                                          Click="DeleteEntityContextMenu_Click"/>
                             </ContextMenu>
                         </TreeView.ContextMenu>
 
@@ -418,6 +428,58 @@
                                        Foreground="#D4D4D4"
                                        Margin="0,0,0,4"
                                        FontSize="12"/>
+
+                            <!-- Show for an entity root or one of its components. -->
+                            <StackPanel x:Name="EntityInspectorSection"
+                                        Visibility="Collapsed"
+                                        Margin="0,8,0,12">
+                                <TextBlock Text="ENTITY"
+                                           FontWeight="SemiBold"
+                                           Foreground="#4EC9B0"
+                                           Margin="0,0,0,6"/>
+                                <TextBlock Text="Name"
+                                           Foreground="#AAAAAA"
+                                           FontSize="11"
+                                           Margin="0,0,0,2"/>
+                                <TextBox x:Name="EntityNameTextBox"
+                                         Background="#1E1E1E"
+                                         Foreground="#CCCCCC"
+                                         BorderBrush="#3E3E42"
+                                         Padding="6,4"
+                                         Margin="0,0,0,10"/>
+                                <TextBlock Text="Components"
+                                           Foreground="#AAAAAA"
+                                           FontSize="11"
+                                           Margin="0,0,0,5"/>
+                                <WrapPanel>
+                                    <Button x:Name="AddModelButton"
+                                            Content="+ Model"
+                                            Margin="0,0,6,6"
+                                            Padding="8,4"
+                                            Background="#2D2D30"
+                                            Foreground="#CCCCCC"
+                                            BorderBrush="#3E3E42"/>
+                                    <Button x:Name="AddCameraButton"
+                                            Content="+ Camera"
+                                            Margin="0,0,6,6"
+                                            Padding="8,4"
+                                            Background="#2D2D30"
+                                            Foreground="#CCCCCC"
+                                            BorderBrush="#3E3E42"/>
+                                    <Button x:Name="AddLightButton"
+                                            Content="+ Light"
+                                            Margin="0,0,0,6"
+                                            Padding="8,4"
+                                            Background="#2D2D30"
+                                            Foreground="#CCCCCC"
+                                            BorderBrush="#3E3E42"/>
+                                </WrapPanel>
+                                <Separator Background="#333333"
+                                           Margin="0,6,0,0"/>
+                            </StackPanel>
+
+                            <!-- Show only when the selected entity has a model. -->
+                            <StackPanel x:Name="ModelInspectorSection">
 
                             <TextBlock Text="Selected object"
                                        Foreground="#888888"
@@ -688,10 +750,12 @@
                                     TickFrequency="0.5"
                                     IsSnapToTickEnabled="False"/>
 
+                            </StackPanel>
+
                             <Separator Background="#333333"
                                        Margin="0,16,0,12"/>
 
-                            <Button Content="Delete Entity"
+                            <Button x:Name="btnDeleteSelection" Content="Delete Entity"
                                     Background="#5A1D1D"
                                     Foreground="#FF8888"
                                     BorderBrush="#8B0000"
