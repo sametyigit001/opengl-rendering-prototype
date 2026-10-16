@@ -393,14 +393,12 @@ extern "C" {
         if (!scene || !scene->getModel(modelIndex)) {
             return 0;
         }
-        Model* model = scene->getModel(modelIndex);
-
-        model->selectNode(index);
+        scene->selectNode(modelIndex,index);
         return 1;
     }
     BRIDGE_API int __cdecl hostSelectModel(int modelIndex) {
         std::lock_guard<std::mutex> lock(g_sceneMutex);
-        if (!scene) return 0;
+        if (!scene || !scene->getModel(modelIndex)) return 0;
         scene->selectModel(modelIndex);
         return 1;
     }
@@ -472,13 +470,15 @@ extern "C" {
         std::lock_guard<std::mutex> lock(g_sceneMutex);
         if (!scene)
             return;
-        scene->getModel(index)->enableWireframe = true;
+        if (Model* model = scene->getModel(index))
+            model->enableWireframe = true;
     }
     BRIDGE_API void __cdecl hostDisableWireframe(int index) {
         std::lock_guard<std::mutex> lock(g_sceneMutex);
         if (!scene)
             return;
-        scene->getModel(index)->enableWireframe = false;
+        if (Model* model = scene->getModel(index))
+            model->enableWireframe = false;
     }
     BRIDGE_API void __cdecl hostGetRenderStats(double* outFps, double* outFrameTimeMs) {
         if (!outFps || !outFrameTimeMs)
@@ -486,5 +486,16 @@ extern "C" {
 
         *outFps = g_latestFps.load(std::memory_order_relaxed);
         *outFrameTimeMs = g_latestFrameTimeMs.load(std::memory_order_relaxed);
+    }
+    BRIDGE_API int __cdecl hostNewEntity() {
+        std::lock_guard<std::mutex> lock(g_sceneMutex);
+        if (!scene) return -3;
+
+       return scene->newEntity();
+    }
+    BRIDGE_API void __cdecl hostDeleteEntity(int entityIndex) {
+        std::lock_guard<std::mutex> lock(g_sceneMutex);
+        if (!scene) return;
+        scene->deleteEntity(entityIndex);
     }
 }

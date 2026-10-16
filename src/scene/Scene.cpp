@@ -23,9 +23,6 @@ Scene::Scene(uint32_t width, uint32_t height) : m_height(height), m_width(width)
 	const auto vertexPath = (shaderDir / "shader.vert").string();
 	const auto fragmentPath = (shaderDir / "shader.frag").string();
 	m_shader = std::make_unique<Shader>(vertexPath.c_str(), fragmentPath.c_str());
-	for (auto& m : m_model) {
-		m = nullptr;
-	}
 }
 
 void Scene::resize(uint32_t width, uint32_t height) {
@@ -50,16 +47,16 @@ void Scene::render() {
 	m_shader->setUniformProjection(m_cam->getProjectionMatrix());
 	m_lightMan.applyLights(*m_shader);
 
-	for (const auto& m : m_model) {
-		if (!m) continue;
+	for (const auto& m : m_entity) {
+		if (!m || !m->model) continue;
 		else {
-			if (m->enableWireframe) {
+			if (m->model->enableWireframe) {
 				glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 			}
 			else {
 				glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 			}
-			m->draw(*m_shader);
+			m->model->draw(*m_shader);
 		}
 	}
 }
@@ -81,28 +78,32 @@ void Scene::onMouseMove(float xoffset, float yoffset) {
 
 int Scene::loadModel(const std::string& path) {
 	std::cout << "\n[Engine] Attempting to load model at: " << path << "\n";
-	int currentIndex{-1};
 	try {
-		m_model.push_back(std::make_unique<Model>(path));
-		currentIndex = m_model.size() - 1;
-		m_model[currentIndex].get()->setIndex(currentIndex);
 
-		if (m_model[currentIndex]) {
-			std::cout << "core:model loaded node count: " << m_model[currentIndex]->getNodes().size() << "\n";
-		}
-		return currentIndex;
+		auto entity = std::make_unique<Entity>();
+		entity->model = std::make_unique<Model>(path);
+
+		const int index = static_cast<int>(m_entity.size());
+		entity->entityID = index;
+		entity->model->setIndex(index);
+
+		const auto nodeCount = entity->model->getNodes().size();
+		m_entity.push_back(std::move(entity));
+
+		std::cout << "core:model loaded node count: " << nodeCount << '\n';
+		return index;
 	}
 	catch (...) {
 		std::cout << "core:error during Scene::modelLoad\n";
-		m_model[currentIndex] = nullptr;
+		return -1;
 	}
 }
 
 storeIndexes Scene::pick(float mouseX, float mouseY) {
 	bool hasModel = false;
-	for(const auto& m :m_model)
+	for(const auto& m :m_entity)
 	{
-		if (m != nullptr) {
+		if (m && m->model) {
 			hasModel = true;
 			break;
 		}
@@ -122,8 +123,9 @@ storeIndexes Scene::pick(float mouseX, float mouseY) {
 	ray worldRay = ray::rayGen(mouseX, mouseY, static_cast<float>(m_width), static_cast<float>(m_height), camConf);
 	int meshIndex;
 	
-	for (size_t i = 0;i < m_model.size();i++) {
-		Model* model = m_model[i].get();
+	for (size_t i = 0;i < m_entity.size();i++) {
+		if (!m_entity[i]) continue;
+		Model* model = m_entity[i]->model.get();
 
 		if (!model) continue;
 
@@ -166,9 +168,42 @@ ray Scene::toModelLocalRay(ray worldRay,const glm::mat4& modelMat) {
 
 	
 }
-void Scene::selectModel(int modelIndex) {
-	const auto& model = m_model[modelIndex].get();
+void Scene::selectModel(int entityIndex) {
+	Model* model = getModel(entityIndex);
+	if (!model)
+	{
+		return;
+	}
+	if (m_selectedEntity != entityIndex) {
+		if (Model* previous = getModel(m_selectedEntity)) {
+			previous->deselectMesh();
+		}
+
+	}
 	model->selectModel();
-
-
+	m_selectedEntity = entityIndex;
 }
+
+	void Scene::selectNode(int EntityIndex,int nodeIndex)
+	{
+		Model* model = getModel(EntityIndex);
+		if (!model)
+		{
+			return;
+		}
+		if (m_selectedEntity != EntityIndex) {
+			if (Model* previous = getModel(m_selectedEntity)) {
+				previous->deselectMesh();
+			}
+
+		}
+		model->selectNode(nodeIndex);
+		m_selectedEntity = EntityIndex;
+	}
+
+	int Scene::newEntity() {
+		auto entity = std::make_unique<Entity>();
+		entity->entityID = m_entity.size();
+		m_entity.push_back(std::move(entity));
+		return m_entity.size() - 1;
+	}

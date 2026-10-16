@@ -51,7 +51,6 @@ public:
 	int processNode(aiNode* node,const aiScene* scene, int parentIndex);
 	void buildTriangleBvh(subMesh& submesh);
 	void draw(Shader& shader);
-	void selectNode(int index);
 	int pickSubMeshes(const ray& localray, float& outdist);
 	subMesh processMesh(aiMesh* mesh, const aiScene* scene);
 	AABB transformAABB(const AABB& local, const glm::mat4& nodeWorld);
@@ -63,6 +62,7 @@ public:
 	glm::vec3 scale{ 1.0f };
 	bool isChanged = true;
 
+	void selectNode(int index);
 	glm::mat4 getModelMatrix() const {
 		glm::mat4 model = glm::mat4(1.0f);
 		model = glm::translate(model, position);

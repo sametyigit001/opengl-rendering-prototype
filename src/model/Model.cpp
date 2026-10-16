@@ -270,8 +270,6 @@ subMesh Model::processMesh(aiMesh* aiMesh, const aiScene* scene) {
         if (glm::length(specularColor) < 0.01f) {
             specularColor = glm::vec3(0.5f);
         }
-        
-
         mat = std::make_shared<Material>(diffuseMap, specularMap,opacityMap, shininess, specularColor);
     }
     subMesh processed{
@@ -473,21 +471,6 @@ std::shared_ptr<Texture> Model::loadMaterialTexture(aiMaterial* mat, aiTextureTy
     m_loadedTextures[canonicalPath] = texture;
     return texture;
 }
-void Model::selectNode(int index)
-{
-    for (auto& sm : m_meshes) {
-        sm.isSelected = false;
-    }
-
-    if (index >= 0 && index < m_nodes.size()) {
-        for (int meshIdx : m_nodes[index].meshIndices) {
-            if (meshIdx >= 0 && meshIdx < m_meshes.size()) {
-                m_meshes[meshIdx].isSelected = true;
-            }
-        }
-    }
-}
-
 
 int Model::pickSubMeshes(const ray& localRay, float& outDist) {
     updateNodeTransformCache();
@@ -678,5 +661,18 @@ void Model::selectModel() {
 void Model::clearSelection() {
     for (auto& sm : m_meshes) {
         sm.isSelected = false;
+    }
+}
+void Model::selectNode(int index)
+{
+    for (auto& sm : m_meshes) {
+        sm.isSelected = false;
+    }
+    if (index >= 0 && index < m_nodes.size()) {
+        for (int meshIdx : m_nodes[index].meshIndices) {
+            if (meshIdx >= 0 && meshIdx < m_meshes.size()) {
+                m_meshes[meshIdx].isSelected = true;
+            }
+        }
     }
 }

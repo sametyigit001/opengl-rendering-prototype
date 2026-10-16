@@ -13,6 +13,11 @@
 #include "Lights.h"
 #include "spatial/Ray.h"
 
+struct Entity {
+	int entityID;
+	std::unique_ptr<Model> model = nullptr;
+};
+
 struct storeIndexes {
 	bool selected = false;
 	int modelIndex = -1;
@@ -30,33 +35,56 @@ public:
 	void onMouseMove(float xOffset, float yOffset);
 	void onMouseScroll(float offset);
 	int loadModel(const std::string& path);
+	void selectNode(int entityIndex,int nodeIndex);
 	storeIndexes pick(float mouseX, float mouseY);
-	void deleteModel(int modelIndex) { m_model[modelIndex] = nullptr; };
+	int newEntity();
+	void deleteModel(int entityIndex) {
+		Entity* entity = getEntity(entityIndex);
+		if (!entity || !entity->model) return;
+		entity->model.reset();
+		if (m_selectedEntity == entityIndex) m_selectedEntity = -1;
+	};
+	void deleteEntity(int entityIndex) {
+		if (!getEntity(entityIndex)) return;
+		m_entity[entityIndex].reset();
+		if (m_selectedEntity == entityIndex) m_selectedEntity = -1;
+	};
 	int updateMeshAABB(int meshIndex);
-	void selectModel(int modelIndex);
+	void selectModel(int entityIndex);
 	ray toModelLocalRay(ray worldRay,const glm::mat4& modelMat);
-	Model* getModel(int modelIndex) {
-		if (modelIndex < 0 ||
-			static_cast<size_t>(modelIndex) >= m_model.size()) {
+	Model* getModel(int entityIndex) {
+		if (entityIndex < 0 ||
+			static_cast<size_t>(entityIndex) >= m_entity.size()) {
 			return nullptr;
 		}
 
-		return m_model[modelIndex].get();
+		const auto& entity = m_entity[entityIndex];
+		return entity ? entity->model.get() : nullptr;
 	};
 	void clearSelection() {
-		for (auto& m : m_model) {
-			if (m == nullptr) { continue; }
-			m->deselectMesh();
+		for (auto& m : m_entity) {
+			if (!m||!m->model) { continue; }
+			m->model->deselectMesh();
 		}
+		m_selectedEntity = -1;
+	}
+
+	Entity* getEntity(int entityIndex)const{
+		if (entityIndex < 0 ||
+			static_cast<size_t>(entityIndex) >= m_entity.size()) {
+			return nullptr;
+		}
+		return m_entity[entityIndex].get();
 	}
 private:
 	uint32_t m_width;
 	uint32_t m_height;
 	bool m_isSelected = false;
+	int m_selectedEntity{ -1 };
 
 	std::unique_ptr<Camera> m_cam;
 	std::unique_ptr<Shader> m_shader;
-	std::vector<std::unique_ptr<Model>> m_model;
+	std::vector<std::unique_ptr<Entity>> m_entity;
 	int pickedModel;
 	lightManager m_lightMan;
 };
