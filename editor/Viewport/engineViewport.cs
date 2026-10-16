@@ -15,6 +15,11 @@ namespace rendererUI
         public int x, y;
     }
 
+    public struct RECT
+    {
+        public int left, top, right, bottom;
+    }
+
     enum movementKeys
     {
         forward = 0,
@@ -42,6 +47,9 @@ namespace rendererUI
 
         [DllImport("user32.dll")]
         public static extern bool ScreenToClient(IntPtr hWnd, ref POINT lpPoint);
+
+        [DllImport("user32.dll")]
+        public static extern bool GetClientRect(IntPtr hWnd, out RECT lpRect);
 
         private const int VK_LBUTTON = 0x01;
         private bool _wasLeftClicking = false;
@@ -120,10 +128,13 @@ namespace rendererUI
                 GetCursorPos(out POINT startPos);
                 POINT clientPos = startPos;
                 ScreenToClient(Handle, ref clientPos);
+                bool hasRightClickBounds = GetClientRect(Handle, out RECT rightClickBounds);
 
                 bool startedInside =
+                    hasRightClickBounds &&
                     clientPos.x >= 0 && clientPos.y >= 0 &&
-                    clientPos.x <= ActualWidth && clientPos.y <= ActualHeight;
+                    clientPos.x < rightClickBounds.right - rightClickBounds.left &&
+                    clientPos.y < rightClickBounds.bottom - rightClickBounds.top;
 
                 if (startedInside)
                 {
@@ -169,10 +180,12 @@ namespace rendererUI
 
                 // Convert global monitor coordinates to local window coordinates
                 ScreenToClient(this.Handle, ref clickPos);
+                bool hasLeftClickBounds = GetClientRect(Handle, out RECT leftClickBounds);
 
                 // Optional: Ensure the click is actually inside the engine viewport bounds
-                if (clickPos.x >= 0 && clickPos.y >= 0 &&
-                    clickPos.x <= ActualWidth && clickPos.y <= ActualHeight)
+                if (hasLeftClickBounds && clickPos.x >= 0 && clickPos.y >= 0 &&
+                    clickPos.x < leftClickBounds.right - leftClickBounds.left &&
+                    clickPos.y < leftClickBounds.bottom - leftClickBounds.top)
                 {
                     if (Application.Current.MainWindow is not MainWindow mainWindow)
                     {
