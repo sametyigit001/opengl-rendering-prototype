@@ -236,7 +236,8 @@ For Debug, configure with `x64-debug`, build with that same preset, and launch f
 2. Expand its hierarchy and select a model or node. The inspector shows its transform.
 3. Edit the position, rotation, or scale fields, or toggle **Wireframe Mode** for the selected model.
 4. Use the **Model / Node** target controls to choose what a viewport click selects. Clicking a hierarchy node selects that node directly.
-5. Use the inspector's **Delete Entity** button to remove the selected model, including when one of its nodes is selected.
+5. Use **+ Empty Entity** to create an entity without a model. Imported models appear beneath their own entity rows.
+6. Select an entity row and click **Delete Entity** to remove it. Select a model row and click **Remove Model** to keep the entity but remove its model. Node rows do not offer an inspector delete action; the hierarchy context menu can delete the owning entity.
 
 With the viewport focused:
 
@@ -253,16 +254,16 @@ This is an actively developed static model editor. Scene saving/loading and undo
 
 Large imports run synchronously on the native render thread and pause rendering. Operations waiting for scene access can also delay the UI. CPU geometry and BVH data remain in memory, and separate imports do not share model data. FPS and frame time describe the render loop, including presentation waits; they are not GPU-only timings.
 
-Some interface controls are placeholders: the Move/Rotate/Scale tool buttons do not yet provide transform gizmos, and normal visualization, shadow controls, and light intensity editing are not connected. Skeletal animation, PBR shading, shadows, and scene frustum culling are not implemented.
+Some interface controls are placeholders: the entity name field and **+ Model**, **+ Camera**, and **+ Light** buttons are not connected yet. The Move/Rotate/Scale tool buttons do not yet provide transform gizmos, and normal visualization, shadow controls, and light intensity editing are not connected. Skeletal animation, PBR shading, shadows, and scene frustum culling are not implemented.
 
 The next planned work is to:
 
-- Introduce entities with optional model, camera, and light components.
+- Attach models to existing empty entities and add camera and light components.
 - Add parent/child entity relationships and drag-and-drop parenting.
 - Expose camera, light, and material settings through the editor.
 - Add transform gizmos and expand hierarchy actions.
 
-These are planned changes; the current scene still stores models, its camera, and lights separately.
+The scene already owns entities with optional models; the editor camera and light manager remain scene-level objects.
 
 ## Repository layout
 
