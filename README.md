@@ -17,13 +17,23 @@ The renderer supports diffuse/base-color, specular, and opacity textures, includ
 
 ## Showcase
 
-These captures are from the earlier standalone renderer. They demonstrate the rendering work behind the project and predate the current WPF editor.
+### Current editor
+
+![WPF editor with an imported watch, scene hierarchy, viewport, and model inspector](media/editor-hierarchy-inspector.png)
+
+The screenshot uses [Chronograph Watch from the Khronos glTF Sample Assets](https://github.com/KhronosGroup/glTF-Sample-Assets/blob/main/Models/ChronographWatch/README.md). The sample credits Eric Chadwick for the model and textures, building on [Chronograph Watch Mudmaster by graphiccompressor](https://skfb.ly/oAsPA), and is licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). The asset contains Khronos, 3D Commerce, and DGG logos; it is shown here as an import example, not distributed with the repository. Its material extensions are not fully supported by this renderer.
+
+### Earlier standalone renderer
+
+These captures predate the WPF editor and show the standalone renderer's geometry handling.
 
 [Watch the Stanford Lucy renderer demo](https://github.com/user-attachments/assets/ed77f1f3-cf55-49e2-ad0d-d6b9f093bba1)
 
 | Render | Geometry detail | Alternate view |
 | --- | --- | --- |
 | ![Earlier renderer showcase](https://github.com/user-attachments/assets/2a4e3eb6-df9f-44fc-8db5-a0eb55693d54) | ![Geometry detail in the earlier renderer](https://github.com/user-attachments/assets/83fb24d6-e79a-4614-8dd8-f9d3811ec769) | ![Alternate view in the earlier renderer](https://github.com/user-attachments/assets/c51d0dd7-f7c5-442e-ae4b-09c83352925e) |
+
+The Lucy model in these captures is from the [Stanford 3D Scanning Repository](https://graphics.stanford.edu/data/3Dscanrep/). Credit for the scan and reconstruction belongs to the Stanford Computer Graphics Laboratory.
 
 Showcase models and textures are not included in this repository. Supply your own local assets to try the editor.
 
@@ -42,7 +52,9 @@ WPF editor
                        Scene
           +--------------+--------------+
           |              |              |
-        Camera         Models         Lights
+        Camera         Entities        Lights
+                         |
+                  Optional models
                          |
                 Nodes and meshes
                          |
@@ -261,6 +273,7 @@ The next planned work is to:
 - Attach models to existing empty entities and add camera and light components.
 - Add parent/child entity relationships and drag-and-drop parenting.
 - Expose camera, light, and material settings through the editor.
+- Add glTF metallic-roughness shading and improve material import.
 - Add transform gizmos and expand hierarchy actions.
 
 The scene already owns entities with optional models; the editor camera and light manager remain scene-level objects.
@@ -281,6 +294,7 @@ src/
 cmake/                  Runtime dependency copy helper
 dependencies/           Vendored sources and optional local libraries
 assets/                 Local development assets (ignored)
+media/                  Editor screenshot
 ```
 
 The WPF application is the entry point. The former standalone `main.cpp` and GLFW window implementation have been retired.
