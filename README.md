@@ -4,6 +4,14 @@ A C++17 OpenGL renderer with a .NET 8 WPF scene editor for Windows. Import stati
 
 The project began as a standalone renderer and now includes a native engine DLL, a C# editor, and a CMake build workflow. Current development focuses on scene editing, picking performance, and extending the scene structure to support more kinds of objects.
 
+## Editor preview
+
+![WPF editor with an imported watch, scene hierarchy, viewport, and model inspector](media/editor-hierarchy-inspector.png)
+
+The current editor shows the imported hierarchy, model selection, transform fields, render controls, and native FPS in one view. The watch is a third-party sample asset; [credits and usage notes](#showcase-assets) are below.
+
+[Watch the editor workflow](media/editor-camera-workflow.mp4) (32 seconds): import a model, select a node, change its transform, inspect it in wireframe, and remove the model. The recording is continuous and uses the Antique Camera sample asset.
+
 ## What you can do
 
 - **Import multiple models.** Load assets through Assimp without changing source code. The import dialog includes OBJ, glTF, GLB, and FBX files; rendering support focuses on static meshes and their materials.
@@ -15,27 +23,13 @@ The project began as a standalone renderer and now includes a native engine DLL,
 
 The renderer supports diffuse/base-color, specular, and opacity textures, including compressed embedded textures such as PNG and JPEG. Its Blinn-Phong shader includes directional, point, and spot lighting; the current scene starts with a directional light. Material, light, and camera settings are not yet exposed as full editor inspectors.
 
-## Showcase
-
-### Current editor
-
-![WPF editor with an imported watch, scene hierarchy, viewport, and model inspector](media/editor-hierarchy-inspector.png)
-
-The screenshot uses [Chronograph Watch from the Khronos glTF Sample Assets](https://github.com/KhronosGroup/glTF-Sample-Assets/blob/main/Models/ChronographWatch/README.md). The sample credits Eric Chadwick for the model and textures, building on [Chronograph Watch Mudmaster by graphiccompressor](https://skfb.ly/oAsPA), and is licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). The asset contains Khronos, 3D Commerce, and DGG logos; it is shown here as an import example, not distributed with the repository. Its material extensions are not fully supported by this renderer.
-
-### Earlier standalone renderer
+## Earlier renderer demo
 
 These captures predate the WPF editor and show the standalone renderer's geometry handling.
 
-[Watch the Stanford Lucy renderer demo](https://github.com/user-attachments/assets/ed77f1f3-cf55-49e2-ad0d-d6b9f093bba1)
+![Stanford Lucy in the earlier standalone renderer](media/lucy-renderer-preview.png)
 
-| Render | Geometry detail | Alternate view |
-| --- | --- | --- |
-| ![Earlier renderer showcase](https://github.com/user-attachments/assets/2a4e3eb6-df9f-44fc-8db5-a0eb55693d54) | ![Geometry detail in the earlier renderer](https://github.com/user-attachments/assets/83fb24d6-e79a-4614-8dd8-f9d3811ec769) | ![Alternate view in the earlier renderer](https://github.com/user-attachments/assets/c51d0dd7-f7c5-442e-ae4b-09c83352925e) |
-
-The Lucy model in these captures is from the [Stanford 3D Scanning Repository](https://graphics.stanford.edu/data/3Dscanrep/). Credit for the scan and reconstruction belongs to the Stanford Computer Graphics Laboratory.
-
-Showcase models and textures are not included in this repository. Supply your own local assets to try the editor.
+[Watch the Stanford Lucy renderer demo](media/lucy-renderer-demo.mp4) (7 seconds).
 
 ## How it is built
 
@@ -294,10 +288,18 @@ src/
 cmake/                  Runtime dependency copy helper
 dependencies/           Vendored sources and optional local libraries
 assets/                 Local development assets (ignored)
-media/                  Editor screenshot
+media/                  Editor and renderer showcase images and videos
 ```
 
 The WPF application is the entry point. The former standalone `main.cpp` and GLFW window implementation have been retired.
+
+## Showcase assets
+
+- **Editor screenshot:** [Chronograph Watch from the Khronos glTF Sample Assets](https://github.com/KhronosGroup/glTF-Sample-Assets/blob/main/Models/ChronographWatch/README.md), credited there to Eric Chadwick for the model and textures. It builds on [Chronograph Watch Mudmaster by graphiccompressor](https://skfb.ly/oAsPA) and is licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). The sample includes Khronos, 3D Commerce, and DGG logos. Its material extensions are not fully supported by this renderer.
+- **Editor workflow video:** [Antique Camera from the Khronos glTF Sample Assets](https://github.com/KhronosGroup/glTF-Sample-Assets/blob/main/Models/AntiqueCamera/README.md), credited to Maximillan Kamps / UX3D and released under [CC0](https://creativecommons.org/publicdomain/zero/1.0/). The model includes a UX3D logo on the tripod. The video shows the current editor's material rendering, which does not yet implement glTF metallic-roughness shading.
+- **Earlier renderer captures:** Stanford Lucy from the [Stanford 3D Scanning Repository](https://graphics.stanford.edu/data/3Dscanrep/). Credit for the scan and reconstruction belongs to the Stanford Computer Graphics Laboratory.
+
+The showcase models and textures are not included in this repository. Supply your own local assets to try the editor.
 
 ## License
 
