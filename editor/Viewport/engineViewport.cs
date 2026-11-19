@@ -1,12 +1,13 @@
 using System;
-using System.Runtime.InteropServices;
-using System.Windows;
-using System.Windows.Input;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
-using System.Windows.Controls;
+using static rendererUI.MainWindow;
 
 namespace rendererUI
 {
@@ -54,6 +55,25 @@ namespace rendererUI
         private const int VK_LBUTTON = 0x01;
         private bool _wasLeftClicking = false;
         private bool _pickInProgress = false;
+
+        private bool _inputSuspended;
+        public bool InputSuspended
+        {
+            get => _inputSuspended;
+            set
+            {
+                _inputSuspended = value;
+                _wasLooking = (GetAsyncKeyState(VK_RBUTTON) & 0x8000) != 0;
+                _wasLeftClicking = (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0;
+
+                if (!value) return;
+
+                _forward = _backward = _left = _right = _up = _down = false;
+                if (_rightLookActive)
+                    ReleaseCapture();
+                _rightLookActive = false;
+            }
+        }
 
         private POINT _lastRawPos;
         private bool _wasLooking = false;
@@ -110,6 +130,19 @@ namespace rendererUI
             lastFrame = currentTime;
 
             if (deltaTime > 0.1f) deltaTime = 0.1f;
+
+            if (InputSuspended)
+            {
+                _forward = _backward = _left = _right = _up = _down = false;
+
+                if (_rightLookActive)
+                    ReleaseCapture();
+
+                _rightLookActive = false;
+                _wasLooking = (GetAsyncKeyState(VK_RBUTTON) & 0x8000) != 0;
+                _wasLeftClicking = (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0;
+                return;
+            }
 
             // Keyboard input dispatch
             if (_forward) coreEngine.hostKeyboardInput((int)movementKeys.forward, deltaTime);
@@ -197,13 +230,13 @@ namespace rendererUI
                     Keyboard.Focus(this);
                     Debug.WriteLine($"[Viewport] Clicked at {clickPos.x}, {clickPos.y}");
                     long selectionRevision = mainWindow.TreeSelectionRevision;
-                    bool selectNodeTarget = mainWindow.NodeTargetRadio.IsChecked == true;
+                    PickTarget target = mainWindow.CurrentPickTarget;
                     _pickInProgress = true;
                     _ = PickAtAsync(
                         clickPos.x,
                         clickPos.y,
                         selectionRevision,
-                        selectNodeTarget);
+                        target);
                 }
             }
             _wasLeftClicking = isLeftClicking;
@@ -213,7 +246,7 @@ namespace rendererUI
             float mouseX,
             float mouseY,
             long selectionRevision,
-            bool selectNodeTarget)
+            PickTarget target)
         {
             try
             {
@@ -221,27 +254,38 @@ namespace rendererUI
                 {
                     coreEngine.hostPick(
                         mouseX, mouseY,
-                        out int modelIndex,
+                        out int entityIndex,
                         out int nodeIndex,
                         out bool isHit);
-                    return (modelIndex, nodeIndex, isHit);
+                    return (entityIndex, nodeIndex, isHit);
                 });
 
-                if (Application.Current.MainWindow is not MainWindow mainWindow ||
+                if (InputSuspended ||
+                    Application.Current.MainWindow is not MainWindow mainWindow ||
                     mainWindow.TreeSelectionRevision != selectionRevision)
                     return;
 
-                if (result.isHit && selectNodeTarget)
+                if (result.isHit)
                 {
-                    coreEngine.hostSelectNode(result.modelIndex, result.nodeIndex);
-                    mainWindow.SelectNodeFromViewport(result.modelIndex, result.nodeIndex);
+                    switch (target)
+                    {
+                        case PickTarget.Entity:
+                            coreEngine.hostSelectEntity(result.entityIndex);
+                            mainWindow.SelectEntityFromViewport(result.entityIndex);
+                            break;
+
+                        case PickTarget.Model:
+                            coreEngine.hostSelectModel(result.entityIndex);
+                            mainWindow.SelectModelFromViewport(result.entityIndex);
+                            break;
+
+                        case PickTarget.Node:
+                            coreEngine.hostSelectNode(result.entityIndex, result.nodeIndex);
+                            mainWindow.SelectNodeFromViewport(result.entityIndex, result.nodeIndex);
+                            break;
+                    }
                 }
-                else if (result.isHit && mainWindow.ModelTargetRadio.IsChecked == true)
-                {
-                    coreEngine.hostSelectModel(result.modelIndex);
-                    mainWindow.SelectModelFromViewport(result.modelIndex);
-                }
-                else if (!result.isHit)
+                else
                 {
                     coreEngine.hostClearSelection();
                     mainWindow.ClearTreeSelectionFromViewport();
@@ -294,8 +338,6 @@ namespace rendererUI
         {
             base.OnMouseDown(e);
             Keyboard.Focus(this);
-
-            
         }
 
         private void SetKeyState(Key key, bool isPressed)

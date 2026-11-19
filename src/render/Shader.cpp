@@ -109,22 +109,24 @@ void Shader::setVec3(const char* name, const glm::vec3& data)const {
 }
 
 
-void Shader::setLight( const lightConfig& lightData,int index)const {
-
+void Shader::setLight( const light& light,int index)const {
+	lightConfig lightData = light.config;
 	std::string prefix = "light[" + std::to_string(index) + "].";
 
 	setInt((prefix + "type").c_str(), static_cast<int>(lightData.type));
 
 	setVec3((prefix + "direction").c_str(), lightData.direction);
 	setVec3((prefix + "position").c_str(), lightData.position);
-	setVec3((prefix + "ambient").c_str(), lightData.ambient);
-	setVec3((prefix + "diffuse").c_str(), lightData.diffuse);
-	setVec3((prefix + "specular").c_str(), lightData.specular);
+	setVec3((prefix + "color").c_str(), lightData.color);
+	setFloat((prefix + "ambientStr").c_str(), lightData.ambientStr);
+	setFloat((prefix + "diffuseStr").c_str(), lightData.diffuseStr);
+	setFloat((prefix + "specularStr").c_str(), lightData.specularStr);
 
 	setFloat((prefix + "constant").c_str(),lightData.constant);
 	setFloat((prefix + "linear").c_str(),lightData.linear);
 	setFloat((prefix + "quadratic").c_str(),lightData.quadratic);
 	setFloat((prefix + "cutOff").c_str(),lightData.cutOff);
 	setFloat((prefix + "outerCutOff").c_str(),lightData.outerCutOff);
+	setFloat((prefix + "intensity").c_str(),lightData.intensity);
 
 }

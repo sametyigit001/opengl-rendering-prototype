@@ -34,6 +34,7 @@
     <ClCompile Include="src\host\winHost.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="src\scene\Entity.h" />
     <ClInclude Include="src\spatial\AABB.h" />
     <ClInclude Include="src\host\bridge.h" />
     <ClInclude Include="src\scene\Camera.h" />

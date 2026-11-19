@@ -34,7 +34,8 @@ struct ray {
 		return ray(conf.position, worldNear - conf.position);
 	}
 
-};	
+};
+
 inline bool AABB::intersects(const ray& r, float& outDist) const {
 	float tmin = 0.0f;
 	float tmax = std::numeric_limits<float>::max();

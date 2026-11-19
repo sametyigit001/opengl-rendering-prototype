@@ -4,6 +4,89 @@
              xmlns:local="clr-namespace:rendererUI"
              StartupUri="MainWindow.xaml">
     <Application.Resources>
-         
+        <SolidColorBrush x:Key="EditorBackground" Color="#15191F"/>
+        <SolidColorBrush x:Key="EditorSurface" Color="#1D232B"/>
+        <SolidColorBrush x:Key="EditorRaised" Color="#28313B"/>
+        <SolidColorBrush x:Key="EditorStroke" Color="#37414D"/>
+        <SolidColorBrush x:Key="EditorAccent" Color="#4C9EFF"/>
+        <SolidColorBrush x:Key="EditorText" Color="#E8EDF3"/>
+        <SolidColorBrush x:Key="EditorMuted" Color="#99A7B7"/>
+
+        <Style TargetType="Button">
+            <Setter Property="Background" Value="{StaticResource EditorRaised}"/>
+            <Setter Property="Foreground" Value="{StaticResource EditorText}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource EditorStroke}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="10,6"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Chrome" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="5" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Chrome" Property="Background" Value="#354353"/>
+                                <Setter TargetName="Chrome" Property="BorderBrush" Value="#5A87B7"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Chrome" Property="Background" Value="#22364C"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.45"/>
+                                <Setter Property="Cursor" Value="Arrow"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="TextBox">
+            <Setter Property="Background" Value="#141A21"/>
+            <Setter Property="Foreground" Value="{StaticResource EditorText}"/>
+            <Setter Property="CaretBrush" Value="{StaticResource EditorAccent}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource EditorStroke}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="7,5"/>
+            <Setter Property="MinHeight" Value="29"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border x:Name="Field" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="4" Padding="{TemplateBinding Padding}">
+                            <ScrollViewer x:Name="PART_ContentHost"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                                <Setter TargetName="Field" Property="BorderBrush" Value="{StaticResource EditorAccent}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="ComboBox">
+            <Setter Property="Background" Value="{StaticResource EditorRaised}"/>
+            <Setter Property="Foreground" Value="{StaticResource EditorText}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource EditorStroke}"/>
+            <Setter Property="MinHeight" Value="30"/>
+        </Style>
+        <Style TargetType="Expander">
+            <Setter Property="Foreground" Value="{StaticResource EditorText}"/>
+            <Setter Property="Margin" Value="0,4,0,4"/>
+        </Style>
+        <Style TargetType="ToolTip">
+            <Setter Property="Background" Value="{StaticResource EditorRaised}"/>
+            <Setter Property="Foreground" Value="{StaticResource EditorText}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource EditorStroke}"/>
+        </Style>
     </Application.Resources>
 </Application>

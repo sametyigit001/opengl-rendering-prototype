@@ -8,6 +8,7 @@
 #include <atomic>
 #include <memory>
 #include <chrono>
+#include <cmath>
 #include <cstdio>
 #include <mutex>
 #include <string>
@@ -19,6 +20,7 @@
 
 static std::mutex g_pathMutex;
 static std::string g_pendingPath = "";
+static int g_pendingEntityId = -1;
 static std::atomic<bool> g_needLoad(false);
 
 static std::mutex g_sceneMutex;
@@ -39,9 +41,10 @@ static std::atomic<double> g_latestFrameTimeMs(0.0);
 static std::atomic<uint32_t> g_PendingWidth(0);
 static std::atomic<uint32_t> g_PendingHeight(0);
 static std::atomic<bool>     g_NeedsResize(false);
-static std::atomic<int>      modelIndex = -1;
+static std::atomic<int>      g_importedEntityIndex = -1;
 
 typedef BOOL(WINAPI* PFNWGLSWAPINTERVALEXTPROC)(int interval);
+
 
 static bool initWGL(HWND hwnd) {
     hdc = GetDC(hwnd);
@@ -101,13 +104,15 @@ static void renderWorker() {
 
         if (g_needLoad.exchange(false, std::memory_order_acquire)) {
             std::string copyPath;
+            int copyEntityId;
             {
                 std::lock_guard<std::mutex> lock(g_pathMutex);
                 copyPath = g_pendingPath;
+                copyEntityId = g_pendingEntityId;
             }
             std::lock_guard<std::mutex> lock(g_sceneMutex);
             if (scene && !copyPath.empty()) {
-               modelIndex.store(scene->loadModel(copyPath),std::memory_order_release);
+               g_importedEntityIndex.store(scene->loadModel(copyPath,copyEntityId),std::memory_order_release);
             }
             g_modelLoad.store(false, std::memory_order_release);
         } 
@@ -231,11 +236,12 @@ extern "C" {
             scene->onMouseMove(xoffset, yoffset);
         }
     }
-    BRIDGE_API void __cdecl hostLoadModel(const char* path)
+    BRIDGE_API void __cdecl hostLoadModel(const char* path, int entityId)
     {
         if (!path) return;
         {
             std::lock_guard<std::mutex> lock(g_pathMutex);
+            g_pendingEntityId = entityId;
             g_pendingPath = path;
         }
         g_modelLoad.store(true, std::memory_order_release);
@@ -243,12 +249,12 @@ extern "C" {
     }
 
     BRIDGE_API int __cdecl hostPick(float mouseX, float mouseY,
-        int* outModelIndex, int* outNodeIndex,bool* isHit)
+        int* outEntityIndex, int* outNodeIndex,bool* isHit)
     {
-        if (!outModelIndex || !outNodeIndex || !isHit)
+        if (!outEntityIndex || !outNodeIndex || !isHit)
             return 0;
 
-        *outModelIndex = -1;
+        *outEntityIndex = -1;
         *outNodeIndex = -1;
         *isHit = false;
 
@@ -258,58 +264,58 @@ extern "C" {
 
         storeIndexes hit = scene->pick(mouseX, mouseY);
 
-        *outModelIndex = hit.modelIndex;
+        *outEntityIndex = hit.entityIndex;
         *outNodeIndex = hit.nodeIndex;
         *isHit = hit.selected;
-        return hit.modelIndex >= 0 ? 1 : 0;
+        return hit.entityIndex >= 0 ? 1 : 0;
     }
-    BRIDGE_API void __cdecl deleteModel(int modelIndex) {
+    BRIDGE_API void __cdecl deleteModel(int entityIndex) {
         std::lock_guard<std::mutex> lock(g_sceneMutex);
         if (scene) {
-            scene->deleteModel(modelIndex);
+            scene->deleteModel(entityIndex);
         }
     }
-    BRIDGE_API int __cdecl hostGetNodeCount(int modelIndex) {
+    BRIDGE_API int __cdecl hostGetNodeCount(int entityIndex) {
         std::lock_guard<std::mutex> lock(g_sceneMutex);
         if (!scene) {
             std::cout << "[Bridge] ERROR: Global 'scene' pointer is NULL!\n";
             return 0;
         }
-        if (!scene->getModel(modelIndex)) {
+        if (!scene->getModel(entityIndex)) {
             std::cout << "[Bridge] ERROR: scene->getModel() is NULL (Model failed to load)!\n";
             return 0;
         }
 
-        int count = static_cast<int>(scene->getModel(modelIndex)->getNodes().size());
+        int count = static_cast<int>(scene->getModel(entityIndex)->getNodes().size());
         std::cout << "[Bridge] hostGetNodeCount successfully returning: " << count << "\n";
         return count;
     }
-    BRIDGE_API int __cdecl hostGetNodeParent(int modelIndex,int index) {
+    BRIDGE_API int __cdecl hostGetNodeParent(int entityIndex,int index) {
         std::lock_guard<std::mutex> lock(g_sceneMutex);
-        if (scene && scene->getModel(modelIndex)) {
-            const auto& nodes = scene->getModel(modelIndex)->getNodes();
+        if (scene && scene->getModel(entityIndex)) {
+            const auto& nodes = scene->getModel(entityIndex)->getNodes();
             if (index >= 0 && index < nodes.size()) {
                 return nodes[index].parentIndex;
             }
         }
         return -1;
     }
-    BRIDGE_API const char* __cdecl hostGetNodeName(int modelIndex,int index) {
+    BRIDGE_API const char* __cdecl hostGetNodeName(int entityIndex,int index) {
         std::lock_guard<std::mutex> lock(g_sceneMutex);
-        if (scene && scene->getModel(modelIndex)) {
-            const auto& nodes = scene->getModel(modelIndex)->getNodes();
+        if (scene && scene->getModel(entityIndex)) {
+            const auto& nodes = scene->getModel(entityIndex)->getNodes();
             if (index >= 0 && index < nodes.size()) {
                 return nodes[index].name.c_str();
             }
         }
         return "unknown";
     }
-    BRIDGE_API int __cdecl hostGetNodePos(int modelIndex,int index, float* x, float* y, float* z) {
+    BRIDGE_API int __cdecl hostGetNodePos(int entityIndex,int index, float* x, float* y, float* z) {
         std::lock_guard<std::mutex> lock(g_sceneMutex);
-        if (!scene || !scene->getModel(modelIndex) || !x || !y || !z) {
+        if (!scene || !scene->getModel(entityIndex) || !x || !y || !z) {
             return 0;
         }
-        Model* model = scene->getModel(modelIndex);
+        Model* model = scene->getModel(entityIndex);
         const auto& nodes = model->getNodes();
 
         if (index == -1) {
@@ -332,12 +338,12 @@ extern "C" {
 
         return 1;
     }
-    BRIDGE_API int __cdecl hostGetNodeScale(int modelIndex,int index, float* x, float* y, float* z) {
+    BRIDGE_API int __cdecl hostGetNodeScale(int entityIndex,int index, float* x, float* y, float* z) {
         std::lock_guard<std::mutex> lock(g_sceneMutex);
-        if (!scene || !scene->getModel(modelIndex) || !x || !y || !z) {
+        if (!scene || !scene->getModel(entityIndex) || !x || !y || !z) {
             return 0;
         }
-        Model* model = scene->getModel(modelIndex);
+        Model* model = scene->getModel(entityIndex);
         const auto& nodes = model->getNodes();
 
         if (index == -1) {
@@ -360,12 +366,12 @@ extern "C" {
 
         return 1;
     }
-    BRIDGE_API int __cdecl hostGetNodeRotation(int modelIndex,int index, float* x, float* y, float* z) {
+    BRIDGE_API int __cdecl hostGetNodeRotation(int entityIndex,int index, float* x, float* y, float* z) {
         std::lock_guard<std::mutex> lock(g_sceneMutex);
-        if (!scene || !scene->getModel(modelIndex) || !x || !y || !z) {
+        if (!scene || !scene->getModel(entityIndex) || !x || !y || !z) {
             return 0;
         }
-        Model* model = scene->getModel(modelIndex);
+        Model* model = scene->getModel(entityIndex);
         const auto& nodes = model->getNodes();
 
         if (index == -1) {
@@ -388,77 +394,71 @@ extern "C" {
 
         return 1;
     }
-    BRIDGE_API int __cdecl hostSelectNode(int modelIndex, int index) {
+    BRIDGE_API int __cdecl hostSelectNode(int entityIndex, int index) {
         std::lock_guard<std::mutex> lock(g_sceneMutex);
-        if (!scene || !scene->getModel(modelIndex)) {
+        if (!scene || !scene->getModel(entityIndex)) {
             return 0;
         }
-        scene->selectNode(modelIndex,index);
+        scene->selectNode(entityIndex,index);
         return 1;
     }
-    BRIDGE_API int __cdecl hostSelectModel(int modelIndex) {
+    BRIDGE_API int __cdecl hostSelectModel(int entityIndex) {
         std::lock_guard<std::mutex> lock(g_sceneMutex);
-        if (!scene || !scene->getModel(modelIndex)) return 0;
-        scene->selectModel(modelIndex);
+        if (!scene || !scene->getModel(entityIndex)) return 0;
+        scene->selectModel(entityIndex);
         return 1;
     }
     BRIDGE_API bool __cdecl hostIsModelLoadInProgress() {
         return g_modelLoad.load(std::memory_order_acquire);
     }
-    BRIDGE_API void __cdecl hostSetNodePos(int modelIndex,int index, float x, float y, float z) {
+    BRIDGE_API void __cdecl hostSetNodePos(int entityIndex,int index, float x, float y, float z) {
         std::lock_guard<std::mutex> lock(g_sceneMutex);
-        if (!scene || !scene->getModel(modelIndex)) {
+        if (!scene || !scene->getModel(entityIndex)) {
             return;
         }
 
-        Model* model = scene->getModel(modelIndex);
+        Model* model = scene->getModel(entityIndex);
         if (index == -1) {
-            model->position.x = x;
-            model->position.y = y;
-            model->position.z = z;
+            model->position = { x,y,z };
         }
         else {
              model->setNodePos(index, x, y, z);
         }
+
     }
 
-    BRIDGE_API void __cdecl hostSetNodeRotation(int modelIndex, int index, float x, float y, float z) {
+    BRIDGE_API void __cdecl hostSetNodeRotation(int entityIndex, int index, float x, float y, float z) {
         std::lock_guard<std::mutex> lock(g_sceneMutex);
-        if (!scene || !scene->getModel(modelIndex)) {
+        if (!scene || !scene->getModel(entityIndex)) {
             return;
         }
 
-        Model* model = scene->getModel(modelIndex);
+        Model* model = scene->getModel(entityIndex);
         if (index == -1) {
            
-            model->rotation.x = x;
-            model->rotation.y = y;
-            model->rotation.z = z;
+            model->rotation = { x,y,z };
         }
         else {
             model->setNodeRotation(index, x, y, z);
         }
     }
 
-    BRIDGE_API void __cdecl hostSetNodeScale(int modelIndex,int index, float x, float y, float z) {
+    BRIDGE_API void __cdecl hostSetNodeScale(int entityIndex,int index, float x, float y, float z) {
         std::lock_guard<std::mutex> lock(g_sceneMutex);
-        if (!scene || !scene->getModel(modelIndex)) {
+        if (!scene || !scene->getModel(entityIndex)) {
             return;
         }
 
-        Model* model = scene->getModel(modelIndex);
+        Model* model = scene->getModel(entityIndex);
         if (index == -1) {
-            model->scale.x = x;
-            model->scale.y = y;
-            model->scale.z = z;
+            model->scale = { x,y,z };
         }
         else {
             model->setNodeScale(index, x, y, z);
         }
     }
-    BRIDGE_API int __cdecl getModelIndex() {
-        const int index = modelIndex.exchange(-1, std::memory_order_relaxed);
-        return index;
+    BRIDGE_API int __cdecl hostGetImportedEntityIndex() {
+        return g_importedEntityIndex.exchange(-1, std::memory_order_relaxed);
     }
     BRIDGE_API void __cdecl hostClearSelection() {
         std::lock_guard<std::mutex> lock(g_sceneMutex);
@@ -466,18 +466,18 @@ extern "C" {
             return;
         scene->clearSelection();
     }
-    BRIDGE_API void __cdecl hostEnableWireframe(int index) {
+    BRIDGE_API void __cdecl hostEnableWireframe(int entityIndex) {
         std::lock_guard<std::mutex> lock(g_sceneMutex);
         if (!scene)
             return;
-        if (Model* model = scene->getModel(index))
+        if (Model* model = scene->getModel(entityIndex))
             model->enableWireframe = true;
     }
-    BRIDGE_API void __cdecl hostDisableWireframe(int index) {
+    BRIDGE_API void __cdecl hostDisableWireframe(int entityIndex) {
         std::lock_guard<std::mutex> lock(g_sceneMutex);
         if (!scene)
             return;
-        if (Model* model = scene->getModel(index))
+        if (Model* model = scene->getModel(entityIndex))
             model->enableWireframe = false;
     }
     BRIDGE_API void __cdecl hostGetRenderStats(double* outFps, double* outFrameTimeMs) {
@@ -497,5 +497,307 @@ extern "C" {
         std::lock_guard<std::mutex> lock(g_sceneMutex);
         if (!scene) return;
         scene->deleteEntity(entityIndex);
+    }
+    BRIDGE_API int __cdecl hostGetEntityPos(int entityIndex, float* x, float* y, float* z) {
+        std::lock_guard<std::mutex> lock(g_sceneMutex);
+        if (!scene || !scene->getEntity(entityIndex) || !x || !y || !z) return 0;
+
+        Entity* entity = scene->getEntity(entityIndex);
+
+        *x =  entity->local.position.x;
+        *y =  entity->local.position.y;
+        *z =  entity->local.position.z;
+        return 1;
+    };
+    BRIDGE_API int __cdecl hostGetEntityScale(int entityIndex, float* x, float* y, float* z) {
+        std::lock_guard<std::mutex> lock(g_sceneMutex);
+        if (!scene || !scene->getEntity(entityIndex) || !x || !y || !z) return 0;
+
+        Entity* entity = scene->getEntity(entityIndex);
+
+        *x = entity->local.scale.x;
+        *y = entity->local.scale.y;
+        *z = entity->local.scale.z;
+        return 1;
+    };
+    BRIDGE_API int __cdecl hostGetEntityRotation(int entityIndex, float* x, float* y, float* z) {
+        std::lock_guard<std::mutex> lock(g_sceneMutex);
+        if (!scene || !scene->getEntity(entityIndex) || !x || !y || !z) return 0;
+
+        Entity* entity = scene->getEntity(entityIndex);
+
+        *x = entity->local.rotation.x;
+        *y = entity->local.rotation.y;
+        *z = entity->local.rotation.z;
+        return 1;
+    };
+    BRIDGE_API int __cdecl hostSetEntityPos(int entityIndex, float x, float y, float z) {
+        std::lock_guard<std::mutex> lock(g_sceneMutex);
+        if (!scene || !scene->getEntity(entityIndex)) {
+            return 0;
+        }
+
+        Entity* entity = scene->getEntity(entityIndex);
+        entity->local.position = { x,y,z };
+        scene->updateEntityMat(entityIndex);
+        return 1;
+    }
+    BRIDGE_API int __cdecl hostSetEntityScale(int entityIndex, float x, float y, float z) {
+        std::lock_guard<std::mutex> lock(g_sceneMutex);
+        if (!scene || !scene->getEntity(entityIndex)) {
+            return 0;
+        }
+
+        Entity* entity = scene->getEntity(entityIndex);
+        entity->local.scale = { x,y,z };
+        scene->updateEntityMat(entityIndex);
+        return 1;
+    }
+    BRIDGE_API int __cdecl hostSetEntityRotation(int entityIndex, float x, float y, float z) {
+        std::lock_guard<std::mutex> lock(g_sceneMutex);
+        if (!scene || !scene->getEntity(entityIndex)) {
+            return 0;
+        }
+
+        Entity* entity = scene->getEntity(entityIndex);
+        entity->local.rotation = { x,y,z };
+        scene->updateEntityMat(entityIndex);
+        return 1;
+    }
+    BRIDGE_API bool __cdecl hostSetParent(int child, int parent) {
+        std::lock_guard<std::mutex> lock(g_sceneMutex);
+        if (!scene) return false;
+        return scene->setParent(child, parent);
+    }
+    BRIDGE_API void __cdecl hostSelectEntity(int entityId) {
+        if (!scene || !scene->getEntity(entityId)) return;
+
+        scene->selectEntity(entityId);
+    }
+    BRIDGE_API int __cdecl hostGetViewportCamera(float* fov, float* speed, float* nearPlane, float* farPlane)
+    {
+        std::lock_guard<std::mutex> lock(g_sceneMutex);
+        if (!scene || !scene->getViewportCamera() || !fov || !speed || !nearPlane || !farPlane)
+            return 0;
+
+        *fov = scene->getViewportCamera()->getFOV();
+        *speed = scene->getViewportCamera()->getSpeed();
+        *nearPlane = scene->getViewportCamera()->getNearPlane();
+        *farPlane = scene->getViewportCamera()->getFarPlane();
+        return 1;
+    }
+    BRIDGE_API void __cdecl hostSetViewportCamera(float fov, float speed, float nearPlane, float farPlane) {
+        std::lock_guard<std::mutex> lock(g_sceneMutex);
+        if (!scene || !scene->getViewportCamera()) {
+            return;
+        }
+        scene->setEditorCameraSettings(fov, speed, nearPlane, farPlane);
+    }
+    BRIDGE_API int __cdecl hostAddCamera(int entityId) {
+        std::lock_guard<std::mutex> lock(g_sceneMutex);
+        if (!scene || !scene->getEntity(entityId)) return 0;
+        return scene->addCamera(entityId);
+    }
+    BRIDGE_API void __cdecl hostSwitchCamera(int entityId) {
+        std::lock_guard<std::mutex> lock(g_sceneMutex);
+        if (!scene || !scene->getEntity(entityId)) return;
+
+        scene->switchCamera(entityId);
+    }
+    BRIDGE_API void __cdecl hostSwitchToEditor() {
+        std::lock_guard<std::mutex> lock(g_sceneMutex);
+        if (!scene) return;
+
+        scene->switchToEditor();
+    }
+    BRIDGE_API int __cdecl hostGetSelectedCamera(int index,float* fov, float* speed, float* nearPlane, float* farPlane){
+
+        std::lock_guard<std::mutex> lock(g_sceneMutex);
+        if (!scene ||!scene->getEntity(index) || !scene->getEntity(index)->camera || !fov || !speed || !nearPlane || !farPlane)
+            return 0;
+        Entity* entity = scene->getEntity(index);
+        *fov = entity->camera->getFOV();
+        *speed = entity->camera->getSpeed();
+        *nearPlane = entity->camera->getNearPlane();
+        *farPlane = entity->camera->getFarPlane();
+        return 1;
+    }
+    BRIDGE_API void __cdecl hostSetSelectedCamera(int index, float fov, float speed, float nearPlane, float farPlane){
+        std::lock_guard<std::mutex> lock(g_sceneMutex);
+        if (!scene || !scene->getEntity(index)) return;
+        scene->setSelectedCameraSettings(index, fov, speed, nearPlane, farPlane);
+    }
+    BRIDGE_API void __cdecl hostSetEntityCamPos(int entityId, float x, float y, float z) {
+        std::lock_guard<std::mutex> lock(g_sceneMutex);
+        if (!scene || !scene->getEntity(entityId)) return;
+        glm::vec3 pos(x, y, z);
+        scene->setCameraPos(entityId, pos);
+
+    }
+    BRIDGE_API void __cdecl hostSetEntityCamRotation(int entityId, float x, float y, float z) {
+        std::lock_guard<std::mutex> lock(g_sceneMutex);
+        if (!scene) return;
+        scene->setCameraRotation(entityId, glm::vec3(x, y, z));
+    }
+    BRIDGE_API void __cdecl hostDeleteCamera(int entityId) {
+        std::lock_guard<std::mutex> lock(g_sceneMutex);
+        if (!scene) return;
+        scene->deleteCamera(entityId);
+    }
+    BRIDGE_API int __cdecl hostGetEntityCamPos(int entityId, float* x, float* y, float* z) {
+        std::lock_guard<std::mutex> lock(g_sceneMutex);
+        if (!scene || !x || !y || !z) return 0;
+        Entity* entity = scene->getEntity(entityId);
+        if (!entity || !entity->camera) return 0;
+        const glm::vec3& value = entity->camera->getLocalPos();
+        *x = value.x;
+        *y = value.y;
+        *z = value.z;
+        return 1;
+    }
+    BRIDGE_API int __cdecl hostGetEntityCamRotation(int entityId, float* x, float* y, float* z) {
+        std::lock_guard<std::mutex> lock(g_sceneMutex);
+        if (!scene || !x || !y || !z) return 0;
+        Entity* entity = scene->getEntity(entityId);
+        if (!entity || !entity->camera) return 0;
+        const glm::vec3& value = entity->camera->getLocalRotation();
+        *x = value.x;
+        *y = value.y;
+        *z = value.z;
+        return 1;
+    }
+    BRIDGE_API bool __cdecl hostGetLight(int entityId, LightConfig* outLight) {
+        std::lock_guard<std::mutex> lock(g_sceneMutex);
+        Entity* entity;
+        if (!scene || !(entity = scene->getEntity(entityId)) || !outLight || !entity->light) return false;
+        LightConfig temp;
+        temp.type = static_cast<LightTypes>(entity->light->config.type);
+        temp.ambientStr =  entity->light->config.ambientStr;
+        temp.diffuseStr =  entity->light->config.diffuseStr;
+        temp.specularStr = entity->light->config.specularStr;
+        temp.direction = { entity->light->config.direction.x ,entity->light->config.direction.y,entity->light->config.direction.z };
+        temp.position = { entity->light->config.position.x ,entity->light->config.position.y,entity->light->config.position.z };
+        temp.constant = entity->light->config.constant;
+        temp.linear = entity->light->config.linear;
+        temp.quadratic = entity->light->config.quadratic;
+        temp.cutOff = entity->light->config.cutOff;
+        temp.outerCutOff = entity->light->config.outerCutOff;
+        temp.color = { entity->light->config.color.x,entity->light->config.color.y ,entity->light->config.color.z };
+        temp.intensity = entity->light->config.intensity;
+
+        *outLight = temp;
+        return true;
+    }
+    BRIDGE_API bool __cdecl hostCopyLight(int sourceEntityId, int targetEntityId){
+        std::lock_guard<std::mutex> lock(g_sceneMutex);
+        Entity* sourceEntity;
+        Entity* targetEntity;
+        if (!scene || !(sourceEntity = scene->getEntity(sourceEntityId)) || !(targetEntity = scene->getEntity(targetEntityId)) || !sourceEntity->light || !targetEntity->light) return false;
+
+        targetEntity->light->config = sourceEntity->light->config;
+        return true;
+
+    }
+    BRIDGE_API bool hostSetLightIntensity(int entityId, float val) {
+        std::lock_guard<std::mutex> lock(g_sceneMutex);
+        Entity* entity;
+        if (!scene || !(entity = scene->getEntity(entityId)) || !entity->light || !std::isfinite(val) || val < 0.0f) return false;
+
+       entity->light->config.intensity = val;
+       return true;
+    }
+
+    BRIDGE_API bool hostSetLightType(int entityId, int type) {
+        std::lock_guard<std::mutex> lock(g_sceneMutex);
+        Entity* entity;
+        if (!scene || !(entity = scene->getEntity(entityId)) || !entity->light) return false;
+        if ((type == 0 || type == 2) && entity->light->config.direction == glm::vec3(0.0f)) return false;
+
+        entity->light->config.type = (lightTypes)type;
+        return true;
+    }
+    BRIDGE_API bool hostSetLightColor(int entityId, float red, float green,float blue) {
+        std::lock_guard<std::mutex> lock(g_sceneMutex);
+        Entity* entity;
+        if (!scene || !(entity = scene->getEntity(entityId)) || !entity->light ||
+            !std::isfinite(red) || !std::isfinite(green) || !std::isfinite(blue) ||
+            red < 0.0f || red > 1.0f || green < 0.0f || green > 1.0f || blue < 0.0f || blue > 1.0f) return false;
+        glm::vec3 color{ red,green,blue };
+        entity->light->config.color = color;
+        return true;
+    }
+    BRIDGE_API bool __cdecl hostAddLight(int entityId) {
+        std::lock_guard<std::mutex> lock(g_sceneMutex);
+        Entity* entity;
+        if (!scene || !(entity = scene->getEntity(entityId)) || entity->light) return false;
+       return scene->addLight(entityId) != 0;
+    }
+    BRIDGE_API bool __cdecl hostDeleteLight(int entityId) {
+        std::lock_guard<std::mutex> lock(g_sceneMutex);
+        Entity* entity;
+        if (!scene || !(entity = scene->getEntity(entityId))) return false;
+        scene->deleteLight(entity);
+        return true;
+    }
+    BRIDGE_API void __cdecl hostSetLightPos(int entityId, float x, float y, float z) {
+        std::lock_guard<std::mutex> lock(g_sceneMutex);
+        Entity* entity;
+        if (!scene || !(entity = scene->getEntity(entityId)) || !entity->light ||
+            !std::isfinite(x) || !std::isfinite(y) || !std::isfinite(z)) return;
+        entity->light->config.position = { x,y,z };
+    }
+    BRIDGE_API void __cdecl hostSetLightDir(int entityId, float x, float y, float z) {
+        std::lock_guard<std::mutex> lock(g_sceneMutex);
+        Entity* entity;
+        if (!scene || !(entity = scene->getEntity(entityId)) || !entity->light ||
+            !std::isfinite(x) || !std::isfinite(y) || !std::isfinite(z) ||
+            (entity->light->config.type != lightTypes::point && x == 0.0f && y == 0.0f && z == 0.0f)) return;
+        entity->light->config.direction = { x,y,z };
+    }
+    BRIDGE_API void hostSetLightAmbientStr(int entityId, float val) {
+        std::lock_guard<std::mutex> lock(g_sceneMutex);
+        Entity* entity;
+        if (!scene || !(entity = scene->getEntity(entityId)) || !entity->light || !std::isfinite(val) || val < 0.0f) return;
+        entity->light->config.ambientStr = val;
+    }
+    BRIDGE_API void hostSetLightDiffuseStr(int entityId, float val) {
+        std::lock_guard<std::mutex> lock(g_sceneMutex);
+        Entity* entity;
+        if (!scene || !(entity = scene->getEntity(entityId)) || !entity->light || !std::isfinite(val) || val < 0.0f) return;
+        entity->light->config.diffuseStr = val;
+    }
+    BRIDGE_API void hostSetLightSpecularStr(int entityId, float val) {
+        std::lock_guard<std::mutex> lock(g_sceneMutex);
+        Entity* entity;
+        if (!scene || !(entity = scene->getEntity(entityId)) || !entity->light || !std::isfinite(val) || val < 0.0f) return;
+        entity->light->config.specularStr = val;
+    }
+    BRIDGE_API void hostSetLightCutOff(int entityId, float inner, float outer) {
+        std::lock_guard<std::mutex> lock(g_sceneMutex);
+        Entity* entity;
+        if (!scene || !(entity = scene->getEntity(entityId)) || !entity->light ||
+            !std::isfinite(inner) || !std::isfinite(outer) ||
+            inner < 0.0f || inner >= outer || outer > 180.0f ||
+            glm::cos(glm::radians(inner)) <= glm::cos(glm::radians(outer))) return;
+        entity->light->config.updateInnerCutOff(inner);
+        entity->light->config.updateOuterCutOff(outer);
+    }
+    BRIDGE_API void hostSetLightConstant(int entityId, float val) {
+        std::lock_guard<std::mutex> lock(g_sceneMutex);
+        Entity* entity;
+        if (!scene || !(entity = scene->getEntity(entityId)) || !entity->light || !std::isfinite(val) || val <= 0.0f) return;
+        entity->light->config.constant = val;
+    }
+    BRIDGE_API void hostSetLightLinear(int entityId, float val) {
+        std::lock_guard<std::mutex> lock(g_sceneMutex);
+        Entity* entity;
+        if (!scene || !(entity = scene->getEntity(entityId)) || !entity->light || !std::isfinite(val) || val < 0.0f) return;
+        entity->light->config.linear = val;
+    }
+    BRIDGE_API void hostSetLightQuadratic(int entityId, float val) {
+        std::lock_guard<std::mutex> lock(g_sceneMutex);
+        Entity* entity;
+        if (!scene || !(entity = scene->getEntity(entityId)) || !entity->light || !std::isfinite(val) || val < 0.0f) return;
+        entity->light->config.quadratic = val;
     }
 }

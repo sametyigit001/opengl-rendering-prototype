@@ -4,8 +4,7 @@
 #include "glm/glm.hpp"
 #include "glm/gtc/matrix_transform.hpp"
 #include "glm/gtc/type_ptr.hpp"
-#include "glad/glad.h"
-#include "render/Shader.h"
+#include <cmath>
 
 enum class projectionType {
     perspective,
@@ -27,8 +26,8 @@ struct cameraConfig {
     float windowWidth = 800.0f;
     float windowHeight = 600.0f;
     float FOV = 45.0f;
-    float nearPlane = 0.1f;       
-    float farPlane = 20000.0f;    
+    float nearPlane = 0.050f;
+    float farPlane = 1000.0f;
     float cameraSpeed = 50.0f;
 };
 
@@ -36,22 +35,39 @@ class Camera {
 private:
     projectionType m_Type;
     float m_Width, m_Height, m_Near, m_Far, m_FOV;
-    glm::vec3 cameraPos = glm::vec3(0.0f, 0.0f, 3.0f);
+    glm::vec3 localCameraPos = glm::vec3(0.0f, 0.0f, 0.0f);
+    glm::vec3 localCameraRotation = glm::vec3(0.0f);
+    glm::vec3 localCameraFront = glm::vec3(0.0f, 0.0f, -1.0f);
+    glm::vec3 localCameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
+    glm::vec3 cameraPos = glm::vec3(0.0f);
     glm::vec3 cameraFront = glm::vec3(0.0f, 0.0f, -1.0f);
     glm::vec3 cameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
     float m_camSpeed;
 
 public:
     double lastX = 400, lastY = 300;
-    float yaw = -89.0f;
+    float yaw = -90.0f;
     float pitch = 0.0f;
     bool firstMouse = true;
     float ambient = 0.5f;
 
-    const glm::vec3 getPos() const { return cameraPos; }
+    const glm::vec3& getPos() const { return cameraPos; }
+    const glm::vec3& getLocalPos() const { return localCameraPos; }
+    const glm::vec3& getLocalRotation() const { return localCameraRotation; }
     const glm::vec3& getFront() const { return cameraFront; }
     const glm::vec3& getUp() const { return cameraUp; }
-
+    void setCameraPos(glm::vec3 pos) {
+        localCameraPos = pos;
+    }
+    void setCameraRotation(glm::vec3 rotation) {
+        localCameraRotation = rotation;
+        glm::mat4 matrix(1.0f);
+        matrix = glm::rotate(matrix, glm::radians(rotation.x), glm::vec3(1, 0, 0));
+        matrix = glm::rotate(matrix, glm::radians(rotation.y), glm::vec3(0, 1, 0));
+        matrix = glm::rotate(matrix, glm::radians(rotation.z), glm::vec3(0, 0, 1));
+        localCameraFront = glm::mat3(matrix) * glm::vec3(0, 0, -1);
+        localCameraUp = glm::mat3(matrix) * glm::vec3(0, 1, 0);
+    }
     explicit Camera(const cameraConfig& config) {
         m_Type = config.type;
         m_Width = config.windowWidth;
@@ -90,24 +106,40 @@ public:
     void setNearPlane(float nearPlane) {
         m_Near = nearPlane;
     }
+    void setFOV(float fov) {
+        m_FOV = fov;
+    }
+
+    float getSpeed() {
+        return m_camSpeed;
+    }
+    float getNearPlane() {
+        return m_Near;
+    }
+    float getFarPlane() {
+        return m_Far;
+    }
+    float getFOV() {
+        return m_FOV;
+    }
 
     void moveForward(float deltatime) {
-        cameraPos += cameraFront * m_camSpeed * deltatime;
+        localCameraPos += cameraFront * m_camSpeed * deltatime;
     }
     void moveBackward(float deltatime) {
-        cameraPos -= cameraFront * m_camSpeed * deltatime;
+        localCameraPos -= cameraFront * m_camSpeed * deltatime;
     }
     void moveRight(float deltatime) {
-        cameraPos += glm::normalize(glm::cross(cameraFront, cameraUp)) * m_camSpeed * deltatime;
+        localCameraPos += glm::normalize(glm::cross(cameraFront, cameraUp)) * m_camSpeed * deltatime;
     }
     void moveLeft(float deltatime) {
-        cameraPos -= glm::normalize(glm::cross(cameraFront, cameraUp)) * m_camSpeed * deltatime;
+        localCameraPos -= glm::normalize(glm::cross(cameraFront, cameraUp)) * m_camSpeed * deltatime;
     }
     void moveUp(float deltatime) {
-        cameraPos += cameraUp * m_camSpeed * deltatime;
+        localCameraPos += cameraUp * m_camSpeed * deltatime;
     }
     void moveDown(float deltatime) {
-        cameraPos -= cameraUp * m_camSpeed * deltatime;
+        localCameraPos -= cameraUp * m_camSpeed * deltatime;
     }
 
     const glm::vec3& GetPosition() const { return cameraPos; }
@@ -129,9 +161,9 @@ public:
         direction.x = cos(glm::radians(yaw)) * cos(glm::radians(pitch));
         direction.y = sin(glm::radians(pitch));
         direction.z = sin(glm::radians(yaw)) * cos(glm::radians(pitch));
-        cameraFront = glm::normalize(direction);
+        localCameraFront = glm::normalize(direction);
 
-        cameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
+        localCameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
     }
 
     void setAspect(float width, float height) {
@@ -139,6 +171,20 @@ public:
         if (width <= 0.0f) width = 1.0f;
         m_Width = width;
         m_Height = height;
+    }
+    void syncToWorldMatrix(const glm::mat4& worldMatrix) {
+        cameraPos = glm::vec3(worldMatrix * glm::vec4(localCameraPos, 1.0f));
+        // Scale affects the offset, but the view needs an orthonormal basis.
+        glm::vec3 right(worldMatrix[0]);
+        glm::vec3 up(worldMatrix[1]);
+        if (glm::dot(right, right) < 0.000001f) return;
+        right = glm::normalize(right);
+        up -= right * glm::dot(right, up);
+        if (glm::dot(up, up) < 0.000001f) return;
+        up = glm::normalize(up);
+        glm::mat3 rotation(right, up, glm::cross(right, up));
+        cameraFront = glm::normalize(rotation * localCameraFront);
+        cameraUp = glm::normalize(rotation * localCameraUp);
     }
 };
 

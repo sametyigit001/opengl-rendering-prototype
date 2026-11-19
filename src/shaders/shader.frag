@@ -14,12 +14,14 @@ struct Light {
     vec3 direction;
     float cutOff;
     float outerCutOff;
-    vec3 ambient;
-    vec3 diffuse;
-    vec3 specular;
+    vec3 color;
+    float ambientStr;
+    float diffuseStr;
+    float specularStr;
     float constant;
     float linear;
     float quadratic;
+    float intensity;
 };
 
 uniform Light light[NR_POINT_LIGHTS];
@@ -80,7 +82,7 @@ void main()
 vec3 CalcLight(Light light, vec3 normal, vec3 fragPos, vec3 viewDir, vec3 diffColor, vec3 specColor) {
     vec3 lightDir;
     float attenuation = 1.0;
-    float intensity = 1.0;
+    float spotIntensity = 1.0;
 
     if (light.type == DIRECTIONAL_LIGHT) {
         lightDir = normalize(-light.direction);
@@ -92,7 +94,7 @@ vec3 CalcLight(Light light, vec3 normal, vec3 fragPos, vec3 viewDir, vec3 diffCo
         if (light.type == SPOT_LIGHT) {
             float theta = dot(lightDir, normalize(-light.direction));
             float epsilon = (light.cutOff - light.outerCutOff);
-            intensity = clamp((theta - light.outerCutOff) / epsilon, 0.0, 1.0);
+            spotIntensity = clamp((theta - light.outerCutOff) / epsilon, 0.0, 1.0);
         }
     }
 
@@ -100,9 +102,9 @@ vec3 CalcLight(Light light, vec3 normal, vec3 fragPos, vec3 viewDir, vec3 diffCo
     vec3 halfwayDir = normalize(lightDir + viewDir);
     float spec = pow(max(dot(normal, halfwayDir), 0.0), material.shininess);
 
-    vec3 ambient  = light.ambient  * diffColor;
-    vec3 diffuse  = light.diffuse  * diff * diffColor;
-    vec3 specular = light.specular * spec * specColor;
+    vec3 ambient  = light.color * light.ambientStr  * diffColor;
+    vec3 diffuse  = light.color * light.diffuseStr  * diff * diffColor;
+    vec3 specular = light.color * light.specularStr * spec * specColor;
 
-    return (ambient + diffuse + specular) * attenuation * intensity;
+    return (ambient + diffuse + specular) * attenuation * spotIntensity * light.intensity;
 }   

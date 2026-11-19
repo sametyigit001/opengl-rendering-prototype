@@ -1,14 +1,14 @@
 # Refactored OpenGL Engine
 
-A C++17 OpenGL renderer with a .NET 8 WPF scene editor for Windows. Import static 3D models, explore their hierarchy, select individual nodes, and edit their transforms in a live viewport.
+A C++17 OpenGL renderer with a .NET 8 WPF scene editor for Windows. Import static 3D models, build an entity hierarchy, attach cameras and lights, and edit the scene in a live viewport.
 
-The project began as a standalone renderer and now includes a native engine DLL, a C# editor, and a CMake build workflow. Current development focuses on scene editing, picking performance, and extending the scene structure to support more kinds of objects.
+The project began as a standalone renderer and now includes a native engine DLL, a C# editor, and a CMake build workflow. Current development focuses on scene editing and picking performance.
 
 ## Editor preview
 
 ![WPF editor with an imported watch, scene hierarchy, viewport, and model inspector](media/editor-hierarchy-inspector.png)
 
-The current editor shows the imported hierarchy, model selection, transform fields, render controls, and native FPS in one view. The watch is a third-party sample asset; [credits and usage notes](#showcase-assets) are below.
+This earlier editor capture shows the imported hierarchy, model selection, transform fields, render controls, and native FPS in one view. The watch is a third-party sample asset; [credits and usage notes](#showcase-assets) are below.
 
 [Watch the editor workflow](media/editor-camera-workflow.mp4) (32 seconds): import a model, select a node, change its transform, inspect it in wireframe, and remove the model. The recording is continuous and uses the Antique Camera sample asset.
 
@@ -18,10 +18,12 @@ The current editor shows the imported hierarchy, model selection, transform fiel
 - **Inspect the model hierarchy.** Browse imported nodes, select a whole model or an individual node, and rename their labels in the editor.
 - **Pick directly in the viewport.** Choose Model or Node as the picking target. Selection is reflected in the hierarchy and highlighted in the renderer.
 - **Edit transforms.** Change position, rotation, and scale for a model or one of its nodes through the inspector.
+- **Build an entity hierarchy.** Create empty entities, attach models, cameras, or lights, and parent entities in the hierarchy. Each entity currently supports one of each component type.
+- **Edit cameras and lights.** Switch between an attached camera and the editor camera. Edit camera settings and adjust a light's type, color, intensity, direction, position, cone, and attenuation in the inspector.
 - **Inspect geometry.** Toggle wireframe per model and move around the scene with the free-look camera.
-- **Monitor the renderer.** View native render-loop FPS and average frame time in the editor's log panel, alongside import status.
+- **Monitor the renderer.** View native render-loop FPS, average frame time, and import status in the editor's status bar.
 
-The renderer supports diffuse/base-color, specular, and opacity textures, including compressed embedded textures such as PNG and JPEG. Its Blinn-Phong shader includes directional, point, and spot lighting; the current scene starts with a directional light. Material, light, and camera settings are not yet exposed as full editor inspectors.
+The renderer supports diffuse/base-color, specular, and opacity textures, including compressed embedded textures such as PNG and JPEG. Its Blinn-Phong shader supports directional, point, and spot lights. The scene keeps an editor directional light and applies attached entity lights alongside it. Material settings do not yet have an editor inspector.
 
 ## Earlier renderer demo
 
@@ -43,18 +45,18 @@ WPF editor
                          |
                 Native C bridge
                          |
-                       Scene
-          +--------------+--------------+
-          |              |              |
-        Camera         Entities        Lights
-                         |
-                  Optional models
-                         |
-                Nodes and meshes
-                         |
-              Materials and textures
-                         |
-              OpenGL draw calls
+                        Scene
+           +--------------+--------------+
+           |                             |
+   Editor camera and light        Parent/child entities
+                                         |
+                              Optional model, camera, light
+                                         |
+                               Model nodes and meshes
+                                         |
+                              Materials and textures
+                                         |
+                                OpenGL draw calls
 ```
 
 ### Picking and transform updates
@@ -63,7 +65,7 @@ Picking first checks model and mesh bounds. For detailed meshes, the importer bu
 
 Rays are transformed into model and mesh space to intersect the stored geometry. Node transforms, inverse matrices, and mesh bounds are cached and rebuilt when node transforms change. The same transform cache is used by rendering and picking.
 
-Viewport picking is dispatched outside the WPF UI thread, and large hierarchies are added in batches. Shared camera and lighting uniforms are uploaded once per frame before drawing the models.
+Viewport picking is dispatched outside the WPF UI thread, and large hierarchies are added in batches. Entity world transforms update their descendants and attached cameras. Camera and lighting uniforms are uploaded once per frame before drawing the models.
 
 ### Assets and memory
 
@@ -243,7 +245,9 @@ For Debug, configure with `x64-debug`, build with that same preset, and launch f
 3. Edit the position, rotation, or scale fields, or toggle **Wireframe Mode** for the selected model.
 4. Use the **Model / Node** target controls to choose what a viewport click selects. Clicking a hierarchy node selects that node directly.
 5. Use **+ Empty Entity** to create an entity without a model. Imported models appear beneath their own entity rows.
-6. Select an entity row and click **Delete Entity** to remove it. Select a model row and click **Remove Model** to keep the entity but remove its model. Node rows do not offer an inspector delete action; the hierarchy context menu can delete the owning entity.
+6. Select an entity to attach a model, camera, or light. Select a camera or light row to edit its settings; the **Viewport** tab switches between the selected camera and the editor camera.
+7. Drag one entity row onto another to change its parent, or onto empty hierarchy space to move it to the root.
+8. Select an entity row and click **Delete Entity** to remove it. Select a model row and click **Remove Model** to keep the entity but remove its model. Node rows do not offer an inspector delete action; the hierarchy context menu can delete the owning entity.
 
 With the viewport focused:
 
@@ -254,23 +258,15 @@ With the viewport focused:
 | Hold right mouse button and move the mouse | Look around |
 | Left mouse button | Pick a model or node |
 
-## Current scope and next steps
+## Current scope and limitations
 
 This is an actively developed static model editor. Scene saving/loading and undo/redo are not implemented, so edits and renamed labels currently last for the editor session.
 
 Large imports run synchronously on the native render thread and pause rendering. Operations waiting for scene access can also delay the UI. CPU geometry and BVH data remain in memory, and separate imports do not share model data. FPS and frame time describe the render loop, including presentation waits; they are not GPU-only timings.
 
-Some interface controls are placeholders: the entity name field and **+ Model**, **+ Camera**, and **+ Light** buttons are not connected yet. The Move/Rotate/Scale tool buttons do not yet provide transform gizmos, and normal visualization, shadow controls, and light intensity editing are not connected. Skeletal animation, PBR shading, shadows, and scene frustum culling are not implemented.
+Entity names are currently editor labels rather than saved scene data. Each entity can hold one model, camera, and light. The Move/Rotate/Scale tool buttons do not yet provide transform gizmos, and normal visualization and shadow controls are not connected. Skeletal animation, PBR shading, shadows, and scene frustum culling are not implemented.
 
-The next planned work is to:
-
-- Attach models to existing empty entities and add camera and light components.
-- Add parent/child entity relationships and drag-and-drop parenting.
-- Expose camera, light, and material settings through the editor.
-- Add glTF metallic-roughness shading and improve material import.
-- Add transform gizmos and expand hierarchy actions.
-
-The scene already owns entities with optional models; the editor camera and light manager remain scene-level objects.
+The WPF editor's C# code will be refactored to consolidate repeated inspector and transform handling while preserving the current behavior.
 
 ## Repository layout
 

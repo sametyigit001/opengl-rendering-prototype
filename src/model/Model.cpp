@@ -142,9 +142,10 @@ void Model::updateNodeTransformCache() {
     isChanged = false;
 }
 
-void Model::draw(Shader& shader) {
+void Model::draw(const ModelDrawContext& context) {
     updateNodeTransformCache();
-    const glm::mat4 modelWorld = getModelMatrix();
+    const glm::mat4 modelWorld = context.entityMatrix * getModelLocalMatrix();
+    Shader& shader = context.shader;
 
     for (size_t i = 0; i < m_nodes.size(); ++i) {
         const modelNode& node = m_nodes[i];
@@ -429,7 +430,6 @@ std::shared_ptr<Texture> Model::loadMaterialTexture(aiMaterial* mat, aiTextureTy
             int width = 0;
             int height = 0;
             int channels = 0;
-
             unsigned char* pixels = stbi_load_from_memory(
                 reinterpret_cast<const unsigned char*>(embedded->pcData),
                 static_cast<int>(embedded->mWidth), // compressed byte count

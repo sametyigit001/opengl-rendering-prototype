@@ -23,7 +23,7 @@ public:
 	void setVec3(const char* name ,const glm::vec3& data) const;
 	void setInt(const char* name,int data) const;
 	void setFloat(const char* name,float data) const;
-	void setLight(const lightConfig& lightData, int index)const ;
+	void setLight(const light& light, int index)const ;
 
 };
 

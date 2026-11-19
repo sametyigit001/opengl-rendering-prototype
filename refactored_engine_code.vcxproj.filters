@@ -107,6 +107,9 @@
     <ClInclude Include="src\host\winHost.h">
       <Filter>host</Filter>
     </ClInclude>
+    <ClInclude Include="src\scene\Entity.h">
+      <Filter>scene</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="src\shaders\light.frag">

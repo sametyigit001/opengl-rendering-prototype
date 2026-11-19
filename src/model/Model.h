@@ -9,6 +9,7 @@
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
 #include "Mesh.h"
+#include "render/Shader.h"
 #include "spatial/AABB.h"
 
 struct triangleBvhNode {
@@ -41,6 +42,11 @@ struct modelNode {
 	
 };
 
+struct ModelDrawContext {
+	Shader& shader;
+	glm::mat4 entityMatrix;
+};
+
 class Model {
 public:
 	bool enableWireframe = false;
@@ -50,7 +56,7 @@ public:
 	void loadModel(std::string path);
 	int processNode(aiNode* node,const aiScene* scene, int parentIndex);
 	void buildTriangleBvh(subMesh& submesh);
-	void draw(Shader& shader);
+	void draw(const ModelDrawContext& context);
 	int pickSubMeshes(const ray& localray, float& outdist);
 	subMesh processMesh(aiMesh* mesh, const aiScene* scene);
 	AABB transformAABB(const AABB& local, const glm::mat4& nodeWorld);
@@ -63,7 +69,7 @@ public:
 	bool isChanged = true;
 
 	void selectNode(int index);
-	glm::mat4 getModelMatrix() const {
+	glm::mat4 getModelLocalMatrix() const {
 		glm::mat4 model = glm::mat4(1.0f);
 		model = glm::translate(model, position);
 
@@ -105,8 +111,8 @@ public:
 		isChanged = true;
 		return true;
 	};
-	void setIndex(int index) {
-		m_index = index;
+	void setEntityIndex(int entityIndex) {
+		m_entityIndex = entityIndex;
 	};
 private:
 	AABB m_AABB;
@@ -121,7 +127,7 @@ private:
 	std::shared_ptr<Texture> loadMaterialTexture(aiMaterial* mat, aiTextureType type,const aiScene* scene);
 	std::unordered_map<std::string, std::shared_ptr<Texture>> m_loadedTextures;
 	std::vector<modelNode> m_nodes;
-	int m_index;
+	int m_entityIndex;
 	void updateNodeTransformCache();
 };
 
