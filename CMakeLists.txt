@@ -46,7 +46,6 @@ add_library(refactored_engine_code SHARED
     src/render/Shader.cpp
     src/render/vertexArray.cpp
     src/render/vertexBuffer.cpp
-    src/scene/Lights.cpp
     src/scene/Scene.cpp
 )
 

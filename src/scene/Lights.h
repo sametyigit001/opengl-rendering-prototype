@@ -14,6 +14,9 @@ enum class lightTypes : int {
 };
 
 struct lightConfig {
+
+
+
 	lightTypes type = lightTypes::directional;
 	glm::vec3 direction = glm::vec3(2.0f,-2.0f,1.0f);
 	glm::vec3 position;
@@ -46,16 +49,7 @@ struct light {
 	lightConfig config;
 };
 
-class lightManager {
-private:
 
-public:
-	size_t addLights(const lightConfig& light);
-	void applyLights(const Shader& shaders)const;
-//	int getSize() { return static_cast<int>(m_Lights.size()); }
-	//lightConfig& getLight(size_t index) { return m_Lights[index]; }
-	void updateLights(size_t index, const glm::vec3& position,const glm::vec3& direction);
-};
 
 
 #endif // LIGHTS_H

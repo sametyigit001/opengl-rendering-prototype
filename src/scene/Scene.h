@@ -107,7 +107,7 @@ private:
 	Camera* m_activeCam = nullptr;
 	int currentCameraIndex = -1;
 	int pickedEntity;
-	lightManager lightMan;
+
 
 };
 

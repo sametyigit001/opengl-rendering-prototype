@@ -22,7 +22,6 @@
     <ClCompile Include="src\host\bridge.cpp" />
     <ClCompile Include="src\render\elementBuffer.cpp" />
     <ClCompile Include="src\render\glad.c" />
-    <ClCompile Include="src\scene\Lights.cpp" />
     <ClCompile Include="src\model\Material.cpp" />
     <ClCompile Include="src\model\Mesh.cpp" />
     <ClCompile Include="src\model\Model.cpp" />

@@ -30,9 +30,6 @@
     <ClCompile Include="src\render\glad.c">
       <Filter>render</Filter>
     </ClCompile>
-    <ClCompile Include="src\scene\Lights.cpp">
-      <Filter>scene</Filter>
-    </ClCompile>
     <ClCompile Include="src\model\Material.cpp">
       <Filter>model</Filter>
     </ClCompile>
