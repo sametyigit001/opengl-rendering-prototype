@@ -150,6 +150,8 @@ namespace rendererUI
         public static extern void hostSetLightLinear(int entityId,float val);
         [DllImport(DLLName, CallingConvention = CallingConvention.Cdecl)]
         public static extern void hostSetLightQuadratic(int entityId,float val);
+        [DllImport(DLLName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void hostSetVsync(int state);
 
         // Implement this export in the engine bridge to expose the latest
         // render-thread measurements to the UI.

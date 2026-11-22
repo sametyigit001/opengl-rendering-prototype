@@ -94,4 +94,5 @@ extern "C" {
 	BRIDGE_API void hostSetLightQuadratic(int entityId, float val);
 	BRIDGE_API void hostSetLightPos(int entityId,float x, float y, float z);
 	BRIDGE_API void hostSetLightDir(int entityId,float x, float y, float z);
+	BRIDGE_API void hostSetVsync(int state);
 }

@@ -12,6 +12,7 @@
 #include <cstdio>
 #include <mutex>
 #include <string>
+#include <vector>
 
 #include "bridge.h"
 #include "scene/Scene.h"
@@ -24,6 +25,12 @@ static int g_pendingEntityId = -1;
 static std::atomic<bool> g_needLoad(false);
 
 static std::mutex g_sceneMutex;
+static std::mutex g_deleteMutex;
+
+enum class deleteType{Entity,Model};
+struct deleteRequest { int entityId; deleteType type; };
+
+std::vector<deleteRequest> pendingDeletes;
 
 static winHost* host = nullptr;
 static HDC hdc = nullptr;
@@ -33,6 +40,7 @@ static std::unique_ptr<Scene> scene = nullptr;
 // Threading controls
 static std::atomic<bool> g_Running(false);
 static std::atomic<bool> g_modelLoad(false);
+static std::atomic<bool> g_vsync(true);
 static std::thread g_RenderThread;
 static std::atomic<double> g_latestFps(0.0);
 static std::atomic<double> g_latestFrameTimeMs(0.0);
@@ -69,12 +77,6 @@ static bool initWGL(HWND hwnd) {
     if (!wglMakeCurrent(hdc, gl)) return false;
     if (!gladLoadGL()) return false;
 
-    PFNWGLSWAPINTERVALEXTPROC wglSwapIntervalEXT =
-        (PFNWGLSWAPINTERVALEXTPROC)wglGetProcAddress("wglSwapIntervalEXT");
-    if (wglSwapIntervalEXT) {
-        wglSwapIntervalEXT(1); // 0 = Disable V-Sync (Immediate Swap)
-    }
-
     // Release context so the background worker thread can claim it
     wglMakeCurrent(nullptr, nullptr);
     return true;
@@ -83,6 +85,9 @@ static bool initWGL(HWND hwnd) {
 static void renderWorker() {
     // Claim the OpenGL context on this dedicated worker thread
     if (!wglMakeCurrent(hdc, gl)) return;
+    PFNWGLSWAPINTERVALEXTPROC wglSwapIntervalEXT =
+        (PFNWGLSWAPINTERVALEXTPROC)wglGetProcAddress("wglSwapIntervalEXT");
+    int vsyncState = -1;
 
     auto lastFpsTime = std::chrono::high_resolution_clock::now();
     int frameCount = 0;
@@ -116,10 +121,37 @@ static void renderWorker() {
             }
             g_modelLoad.store(false, std::memory_order_release);
         } 
+
+        std::vector<deleteRequest> pending;
+
+        {
+            std::lock_guard<std::mutex> lock(g_deleteMutex);
+            pending.swap(pendingDeletes);
+        } // Queue mutex released here.
+
+        {
+            std::lock_guard<std::mutex> lock(g_sceneMutex);
+
+            for (const deleteRequest& request : pending) {
+                if (!scene) break;
+
+                if (request.type == deleteType::Entity)
+                    scene->deleteEntity(request.entityId);
+                else
+                    scene->deleteModel(request.entityId);
+            }
+        }
+
         {
             std::lock_guard<std::mutex> lock(g_sceneMutex);
             if (scene) {
                 scene->render();
+            }
+        }
+        int requested = g_vsync.load() ? 1 : 0;
+        if (wglSwapIntervalEXT && vsyncState != requested) {
+            if (wglSwapIntervalEXT(requested)) {
+                vsyncState = requested;
             }
         }
         SwapBuffers(hdc);
@@ -198,6 +230,8 @@ extern "C" {
             g_Running.store(false);
             if (g_RenderThread.joinable()) {
                 g_RenderThread.join();
+                std::lock_guard<std::mutex> lock(g_deleteMutex);
+                pendingDeletes.clear();
             }
         }
 
@@ -222,6 +256,7 @@ extern "C" {
             host = nullptr;
         }
     }
+
 
     BRIDGE_API void __cdecl hostKeyboardInput(int direction, float deltatime) {
         std::lock_guard<std::mutex> lock(g_sceneMutex);
@@ -270,10 +305,9 @@ extern "C" {
         return hit.entityIndex >= 0 ? 1 : 0;
     }
     BRIDGE_API void __cdecl deleteModel(int entityIndex) {
-        std::lock_guard<std::mutex> lock(g_sceneMutex);
-        if (scene) {
-            scene->deleteModel(entityIndex);
-        }
+        std::lock_guard<std::mutex> lock(g_deleteMutex);
+        if (!g_Running.load()) return;
+        pendingDeletes.push_back({ entityIndex, deleteType::Model });
     }
     BRIDGE_API int __cdecl hostGetNodeCount(int entityIndex) {
         std::lock_guard<std::mutex> lock(g_sceneMutex);
@@ -494,9 +528,9 @@ extern "C" {
        return scene->newEntity();
     }
     BRIDGE_API void __cdecl hostDeleteEntity(int entityIndex) {
-        std::lock_guard<std::mutex> lock(g_sceneMutex);
-        if (!scene) return;
-        scene->deleteEntity(entityIndex);
+        std::lock_guard<std::mutex> lock(g_deleteMutex);
+        if (!g_Running.load()) return;
+        pendingDeletes.push_back({ entityIndex, deleteType::Entity });
     }
     BRIDGE_API int __cdecl hostGetEntityPos(int entityIndex, float* x, float* y, float* z) {
         std::lock_guard<std::mutex> lock(g_sceneMutex);
@@ -799,5 +833,8 @@ extern "C" {
         Entity* entity;
         if (!scene || !(entity = scene->getEntity(entityId)) || !entity->light || !std::isfinite(val) || val < 0.0f) return;
         entity->light->config.quadratic = val;
+    }
+    BRIDGE_API void hostSetVsync(int state) {
+        g_vsync.store(state != 0);
     }
 }

@@ -1661,6 +1661,12 @@ namespace rendererUI
             }
         }
 
+        private void ViewportVSyncCheckBox_Click(object sender, RoutedEventArgs e)
+        {
+            int state = ViewportVSyncCheckBox.IsChecked == true ? 1 : 0;
+            coreEngine.hostSetVsync(state);
+        }
+
         private void refreshViewportCamera()
         {
             float fov, speed, far, near;
